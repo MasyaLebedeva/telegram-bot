@@ -1,17 +1,20 @@
-from aiogram import Bot, Dispatcher
+import os
+import asyncio
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-import asyncio
+from aiohttp import web
 
 # Конфигурация
-API_TOKEN = '7814963909:AAGoxBu9pkVmyAwyw41x7Nyy0n9ww9QTvoU'
-CHANNEL_ID = '-1001324681912'  # Проверено, работает
-CHANNEL_LINK = 'https://t.me/lebedevamariiatgm'  # Ссылка на твой канал
+API_TOKEN = os.getenv("TELEGRAM_TOKEN")  # Токен из Render
+CHANNEL_ID = "-1001324681912"
+CHANNEL_LINK = "https://t.me/lebedevamariiatgm"
 
 # Инициализация
-print("Инициализация бота...")
+print("Инициализация бота @gigtestibot...")
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(bot=bot)
+app = web.Application()  # WSGI приложение для gunicorn
 
 # Обработчик команды /start
 @dp.message(Command("start"))
@@ -45,7 +48,21 @@ async def process_subscription(callback: CallbackQuery):
         await bot.send_message(user_id, "😓 Ошибка проверки подписки. Попробуй позже.")
         await callback.answer("Ошибка")
 
-# Запуск бота
-if __name__ == "__main__":
-    print("Запуск бота...")
-    asyncio.run(dp.start_polling(bot))
+# Webhook и health check
+async def webhook(request):
+    try:
+        data = await request.json()
+        update = types.Update(**data)
+        await dp.process_update(update)
+        return web.json_response({"status": "ok"})
+    except Exception as e:
+        print(f"Webhook ошибка: {e}")
+        return web.json_response({"status": "error"}, status=500)
+
+async def health(request):
+    return web.json_response({"status": "healthy"})
+
+app.router.add_post(f"/webhook/{API_TOKEN}", webhook)
+app.router.add_get("/health", health)
+
+# Установка webhook при стар
