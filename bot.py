@@ -65,4 +65,25 @@ async def health(request):
 app.router.add_post(f"/webhook/{API_TOKEN}", webhook)
 app.router.add_get("/health", health)
 
-# Установка webhook при стар
+# Установка webhook при старте
+async def on_startup(_):
+    WEBHOOK_URL = f"https://gigtest-bot.onrender.com/webhook/{API_TOKEN}"
+    await bot.delete_webhook()
+    await bot.set_webhook(WEBHOOK_URL)
+    print("Webhook установлен для @gigtestibot")
+
+# Запуск приложения
+async def start_app():
+    try:
+        await on_startup(None)  # Устанавливаем webhook
+        port = int(os.getenv("PORT", 10000))
+        print(f"Запуск сервера на порту {port}...")
+        return app  # Возвращаем приложение для gunicorn
+    except Exception as e:
+        print(f"Ошибка запуска: {e}")
+        raise
+
+# Gunicorn будет вызывать эту функцию
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_app())
