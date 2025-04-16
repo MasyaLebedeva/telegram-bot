@@ -57,6 +57,17 @@ Bot.set_current(bot)  # Устанавливаем текущий экземпл
 dp = Dispatcher(bot)
 init_db()
 
+# Middleware для логирования
+@dp.middleware_handler()
+async def log_middleware(handler, event, data):
+    if isinstance(event, Message):
+        logger.info(f"Получено сообщение от {event.from_user.id}: {event.text}")
+        update_user_activity(event.from_user.id)
+    elif isinstance(event, CallbackQuery):
+        logger.info(f"Получен callback от {event.from_user.id}: {event.data}")
+        update_user_activity(event.from_user.id)
+    return await handler(event, data)
+
 # Функции для работы с БД
 def add_user(user_id, username, first_name, last_name, language_code):
     conn = sqlite3.connect('bot.db')
@@ -100,7 +111,7 @@ def get_user_stats():
     }
 
 # Обработчик команды /start
-@dp.message_handler(commands=["start"], priority=1)
+@dp.message_handler(commands=["start"])
 async def cmd_start(message: Message):
     try:
         logger.info(f"Обработка команды /start от {message.from_user.id}")
@@ -109,7 +120,6 @@ async def cmd_start(message: Message):
         update_user_activity(user.id)
         log_action(user.id, "start")
         
-        logger.info(f"START: Команда /start от {user.id}")
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)],
             [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
@@ -122,14 +132,10 @@ async def cmd_start(message: Message):
         logger.error(f"Ошибка в обработчике /start: {e}")
 
 # Обработчик для админ-команд
-@dp.message_handler(commands=["admin"], priority=1)
+@dp.message_handler(commands=["admin"])
 async def cmd_admin(message: Message):
     try:
         logger.info(f"Обработка команды /admin от {message.from_user.id}")
-        logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
-        logger.info(f"User ID: {message.from_user.id}")
-        logger.info(f"Is admin: {message.from_user.id in ADMIN_IDS}")
-        
         if message.from_user.id not in ADMIN_IDS:
             await message.answer("⛔️ У вас нет доступа к админ-панели")
             return
@@ -152,22 +158,6 @@ async def cmd_admin(message: Message):
         )
     except Exception as e:
         logger.error(f"Ошибка в обработчике /admin: {e}")
-
-# Обработчик всех остальных сообщений для логирования
-@dp.message_handler(priority=0)
-async def log_message(message: Message):
-    logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
-    update_user_activity(message.from_user.id)
-    # Добавляем отладочную информацию
-    logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
-    logger.info(f"User ID: {message.from_user.id}")
-    logger.info(f"Is admin: {message.from_user.id in ADMIN_IDS}")
-
-# Обработчик всех callback-запросов для логирования
-@dp.callback_query_handler()
-async def log_callback(callback: CallbackQuery):
-    logger.info(f"Получен callback от {callback.from_user.id}: {callback.data}")
-    update_user_activity(callback.from_user.id)
 
 # Обработчик для check_subscription
 @dp.callback_query_handler(lambda c: c.data == "check_subscription")
