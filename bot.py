@@ -379,6 +379,13 @@ async def on_startup(app):
         # Проверяем соединение с Telegram
         me = await bot.get_me()
         logger.info(f"Bot info: {me}")
+        
+        # Проверяем доступность бота
+        try:
+            await bot.send_message(me.id, "Бот запущен и готов к работе!")
+            logger.info("Проверка доступности бота успешна")
+        except Exception as e:
+            logger.error(f"Ошибка при проверке доступности бота: {e}")
     except Exception as e:
         logger.error(f"Ошибка при настройке вебхука: {e}")
         raise
@@ -406,15 +413,25 @@ async def handle_root(request):
 
 async def handle_webhook(request):
     try:
+        # Получаем данные из запроса
         data = await request.json()
         logger.info(f"Получен вебхук: {data}")
         
-        update = types.Update(**data)
-        await dp.process_update(update)
+        # Проверяем тип обновления
+        if "message" in data:
+            logger.info(f"Получено сообщение: {data['message']}")
+            update = types.Update(**data)
+            await dp.process_update(update)
+        elif "callback_query" in data:
+            logger.info(f"Получен callback_query: {data['callback_query']}")
+            update = types.Update(**data)
+            await dp.process_update(update)
+        else:
+            logger.warning(f"Неизвестный тип обновления: {data}")
         
         return web.Response(text="OK")
     except Exception as e:
-        logger.error(f"Ошибка при обработке вебхука: {e}")
+        logger.error(f"Ошибка при обработке вебхука: {type(e).__name__}: {e}")
         return web.Response(text="Error", status=500)
 
 if __name__ == "__main__":
