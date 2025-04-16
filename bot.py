@@ -428,9 +428,10 @@ async def handle_webhook(request):
         data = await request.json()
         logger.info(f"Получен вебхук: {data}")
         
-        update = types.Update(**data)
-        
         try:
+            update = types.Update(**data)
+            logger.info(f"Создан объект Update: {update}")
+            
             if update.message:
                 logger.info(f"Обработка сообщения: {update.message.text}")
                 await dp.process_message(update.message)
