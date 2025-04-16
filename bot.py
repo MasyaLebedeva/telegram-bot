@@ -215,14 +215,14 @@ async def process_admin_callback(callback: CallbackQuery):
         await cmd_admin(callback.message)
 
 # Обработчик для health check
-async def on_startup(dp):
-    logger.info("Бот запущен")
+async def on_startup(app):
+    logger.info("Setting up webhook...")
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
-    logger.info(f"Webhook установлен: {WEBHOOK_URL}")
+    logger.info(f"Webhook set to: {WEBHOOK_URL}")
 
-async def on_shutdown(dp):
-    logger.info("Бот остановлен")
+async def on_shutdown(app):
+    logger.info("Shutting down...")
     await bot.delete_webhook()
     await dp.storage.close()
     await dp.storage.wait_closed()
@@ -232,14 +232,21 @@ async def handle_root(request):
     return web.Response(text="Bot is running")
 
 async def handle_webhook(request):
-    update = types.Update(**(await request.json()))
-    await dp.process_update(update)
-    return web.Response()
+    try:
+        update = types.Update(**(await request.json()))
+        await dp.process_update(update)
+        return web.Response()
+    except Exception as e:
+        logger.error(f"Error processing webhook: {e}")
+        return web.Response(status=500)
 
 if __name__ == "__main__":
     app = web.Application()
     app.router.add_get('/', handle_root)
     app.router.add_post(WEBHOOK_PATH, handle_webhook)
+    
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
     
     web.run_app(
         app,
