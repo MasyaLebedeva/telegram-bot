@@ -140,12 +140,17 @@ async def cmd_start(message: Message):
 @dp.message_handler(commands=["admin"])
 async def cmd_admin(message: Message):
     try:
-        logger.info(f"Обработка команды /admin от {message.from_user.id}")
-        if message.from_user.id not in ADMIN_IDS:
+        user_id = message.from_user.id
+        logger.info(f"Обработка команды /admin от {user_id}")
+        
+        if user_id not in ADMIN_IDS:
+            logger.warning(f"Попытка доступа к админ-панели от неавторизованного пользователя {user_id}")
             await message.answer("⛔️ У вас нет доступа к админ-панели")
             return
         
+        logger.info(f"Пользователь {user_id} получил доступ к админ-панели")
         stats = get_user_stats()
+        
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
             [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
@@ -163,6 +168,7 @@ async def cmd_admin(message: Message):
         )
     except Exception as e:
         logger.error(f"Ошибка в обработчике /admin: {e}")
+        await message.answer("❌ Произошла ошибка при открытии админ-панели")
 
 # Обработчик для check_subscription
 @dp.callback_query_handler(lambda c: c.data == "check_subscription")
