@@ -1,9 +1,8 @@
 import os
-import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from aiohttp import web
+from aiogram.utils import executor
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -21,9 +20,7 @@ WEBHOOK_URL = f"https://gigtest-bot-new.onrender.com{WEBHOOK_PATH}"
 # Инициализация
 logger.info("Инициализация бота @gigtestibot...")
 bot = Bot(token=API_TOKEN)
-Bot.set_current(bot)  # Устанавливаем текущий экземпляр бота
 dp = Dispatcher(bot)
-app = web.Application()
 
 # Обработчик команды /start
 @dp.message_handler(commands=["start"])
@@ -68,63 +65,27 @@ async def process_subscription(callback: CallbackQuery):
         await bot.send_message(user_id, "😓 Ошибка проверки подписки. Попробуй позже.")
         await callback.answer("Ошибка")
 
-# Webhook и health check
-async def webhook(request):
-    logger.info("Получен запрос на вебхук")
-    try:
-        data = await request.json()
-        logger.info(f"Данные вебхука: {data}")
-        update = types.Update(**data)
-        await dp.process_update(update)
-        return web.json_response({"status": "ok"})
-    except Exception as e:
-        logger.error(f"Webhook ошибка: {e}")
-        return web.json_response({"status": "error"}, status=500)
+# Обработчик для health check
+async def on_startup(dp):
+    logger.info("Бот запущен")
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(WEBHOOK_URL)
+    logger.info(f"Webhook установлен: {WEBHOOK_URL}")
 
-async def health(request):
-    return web.json_response({"status": "healthy"})
-
-# Добавление маршрутов
-app.router.add_post(WEBHOOK_PATH, webhook)
-app.router.add_get("/health", health)
-
-# Установка webhook
-async def on_startup(_):
-    try:
-        logger.info("Удаление старого вебхука...")
-        await bot.delete_webhook(drop_pending_updates=True)
-        logger.info(f"Установка нового вебхука: {WEBHOOK_URL}")
-        await bot.set_webhook(WEBHOOK_URL)
-        logger.info("Webhook успешно установлен для @gigtestibot")
-    except Exception as e:
-        logger.error(f"Ошибка установки webhook: {e}")
-        raise
-
-# Запуск сервера
-async def start_app():
-    try:
-        runner = web.AppRunner(app)
-        await runner.setup()
-        port = int(os.getenv("PORT", 10000))
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        await site.start()
-        logger.info(f"Бот @gigtestibot запущен на порту {port}")
-        await on_startup(None)
-        
-        # Ожидаем завершения работы
-        while True:
-            await asyncio.sleep(3600)
-    except Exception as e:
-        logger.error(f"Ошибка запуска сервера: {e}")
-        raise
-    finally:
-        await runner.cleanup()
-        await bot.session.close()
+async def on_shutdown(dp):
+    logger.info("Бот остановлен")
+    await bot.delete_webhook()
+    await dp.storage.close()
+    await dp.storage.wait_closed()
+    await bot.session.close()
 
 if __name__ == "__main__":
-    try:
-        web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
-    except KeyboardInterrupt:
-        logger.info("Бот остановлен")
-    except Exception as e:
-        logger.error(f"Критическая ошибка: {e}")
+    executor.start_webhook(
+        dispatcher=dp,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 10000))
+    )
