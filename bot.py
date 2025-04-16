@@ -214,78 +214,85 @@ async def process_subscription(callback: CallbackQuery):
 # Обработчик для админ-кнопок
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"))
 async def process_admin_callback(callback: CallbackQuery):
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("⛔️ У вас нет доступа")
-        return
-    
-    action = callback.data.split("_")[1]
-    
-    if action == "stats":
-        stats = get_user_stats()
-        await callback.message.edit_text(
-            f"📊 Статистика бота:\n\n"
-            f"👥 Всего пользователей: {stats['total_users']}\n"
-            f"✅ Подписано: {stats['subscribed_users']}\n"
-            f"🟢 Активных за сутки: {stats['active_today']}\n\n"
-            f"📈 Детальная статистика:\n"
-            f"📅 За последние 7 дней: {get_active_users(7)}\n"
-            f"📅 За последние 30 дней: {get_active_users(30)}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
-            ])
-        )
-    elif action == "broadcast":
-        await callback.message.edit_text(
-            "📨 Отправьте сообщение для рассылки:\n\n"
-            "Поддерживаются следующие типы сообщений:\n"
-            "• Текст\n"
-            "• Фото с подписью\n"
-            "• Документ с подписью",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
-            ])
-        )
-    elif action == "users":
-        await callback.message.edit_text(
-            "👥 Управление пользователями:\n\n"
-            "Выберите действие:",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Поиск пользователя", callback_data="admin_search_user")],
-                [InlineKeyboardButton(text="📋 Список пользователей", callback_data="admin_list_users")],
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
-            ])
-        )
-    elif action == "settings":
-        await callback.message.edit_text(
-            "⚙️ Настройки бота:\n\n"
-            "Выберите настройку:",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="📢 Канал", callback_data="admin_channel_settings")],
-                [InlineKeyboardButton(text="📝 Приветственное сообщение", callback_data="admin_welcome_settings")],
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
-            ])
-        )
-    elif action == "back":
-        # Проверяем права администратора перед возвратом в главное меню
-        if callback.from_user.id not in ADMIN_IDS:
+    try:
+        user_id = callback.from_user.id
+        logger.info(f"Обработка callback {callback.data} от {user_id}")
+        
+        if user_id not in ADMIN_IDS:
+            logger.warning(f"Попытка доступа к админ-панели от неавторизованного пользователя {user_id}")
             await callback.answer("⛔️ У вас нет доступа")
             return
-        stats = get_user_stats()
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-            [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
-            [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
-        ])
         
-        await callback.message.edit_text(
-            f"👋 Добро пожаловать в админ-панель!\n\n"
-            f"📈 Общая статистика:\n"
-            f"👥 Всего пользователей: {stats['total_users']}\n"
-            f"✅ Подписано: {stats['subscribed_users']}\n"
-            f"🟢 Активных за сутки: {stats['active_today']}",
-            reply_markup=markup
-        )
+        action = callback.data.split("_")[1]
+        logger.info(f"Обработка действия {action} для пользователя {user_id}")
+        
+        if action == "stats":
+            stats = get_user_stats()
+            await callback.message.edit_text(
+                f"📊 Статистика бота:\n\n"
+                f"👥 Всего пользователей: {stats['total_users']}\n"
+                f"✅ Подписано: {stats['subscribed_users']}\n"
+                f"🟢 Активных за сутки: {stats['active_today']}\n\n"
+                f"📈 Детальная статистика:\n"
+                f"📅 За последние 7 дней: {get_active_users(7)}\n"
+                f"📅 За последние 30 дней: {get_active_users(30)}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+                ])
+            )
+        elif action == "broadcast":
+            await callback.message.edit_text(
+                "📨 Отправьте сообщение для рассылки:\n\n"
+                "Поддерживаются следующие типы сообщений:\n"
+                "• Текст\n"
+                "• Фото с подписью\n"
+                "• Документ с подписью",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+                ])
+            )
+        elif action == "users":
+            await callback.message.edit_text(
+                "👥 Управление пользователями:\n\n"
+                "Выберите действие:",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔍 Поиск пользователя", callback_data="admin_search_user")],
+                    [InlineKeyboardButton(text="📋 Список пользователей", callback_data="admin_list_users")],
+                    [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+                ])
+            )
+        elif action == "settings":
+            await callback.message.edit_text(
+                "⚙️ Настройки бота:\n\n"
+                "Выберите настройку:",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📢 Канал", callback_data="admin_channel_settings")],
+                    [InlineKeyboardButton(text="📝 Приветственное сообщение", callback_data="admin_welcome_settings")],
+                    [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+                ])
+            )
+        elif action == "back":
+            stats = get_user_stats()
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+                [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
+                [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
+                [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
+            ])
+            
+            await callback.message.edit_text(
+                f"👋 Добро пожаловать в админ-панель!\n\n"
+                f"📈 Общая статистика:\n"
+                f"👥 Всего пользователей: {stats['total_users']}\n"
+                f"✅ Подписано: {stats['subscribed_users']}\n"
+                f"🟢 Активных за сутки: {stats['active_today']}",
+                reply_markup=markup
+            )
+        
+        await callback.answer()
+    except Exception as e:
+        logger.error(f"Ошибка при обработке callback {callback.data}: {e}")
+        await callback.answer("❌ Произошла ошибка")
 
 # Обработчик для рассылки
 @dp.message_handler(lambda message: message.from_user.id in ADMIN_IDS and message.reply_to_message and message.reply_to_message.text == "📨 Отправьте сообщение для рассылки:")
