@@ -51,6 +51,7 @@ def init_db():
 # Инициализация
 logger.info("Инициализация бота @gigtestibot...")
 bot = Bot(token=API_TOKEN)
+Bot.set_current(bot)  # Устанавливаем текущий экземпляр бота
 dp = Dispatcher(bot)
 init_db()
 
