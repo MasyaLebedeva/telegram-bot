@@ -333,43 +333,73 @@ def get_active_users(days):
 async def on_startup(app):
     logger.info("Setting up webhook...")
     try:
+        # Удаляем старый вебхук
         await bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Старый вебхук удален")
+        
+        # Устанавливаем новый вебхук
         await bot.set_webhook(WEBHOOK_URL)
         logger.info(f"Webhook set to: {WEBHOOK_URL}")
+        
+        # Проверяем статус вебхука
+        webhook_info = await bot.get_webhook_info()
+        logger.info(f"Webhook info: {webhook_info}")
     except Exception as e:
-        logger.error(f"Error setting up webhook: {e}")
+        logger.error(f"Ошибка при настройке вебхука: {e}")
+        raise
 
 async def on_shutdown(app):
     logger.info("Shutting down...")
     try:
+        # Удаляем вебхук
         await bot.delete_webhook()
+        logger.info("Webhook удален")
+        
+        # Закрываем хранилище
         await dp.storage.close()
         await dp.storage.wait_closed()
+        logger.info("Хранилище закрыто")
+        
+        # Закрываем сессию бота
         await bot.session.close()
+        logger.info("Сессия бота закрыта")
     except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
+        logger.error(f"Ошибка при завершении работы: {e}")
 
 async def handle_root(request):
     return web.Response(text="Bot is running")
 
 async def handle_webhook(request):
     try:
-        update = types.Update(**(await request.json()))
-        logger.info(f"Получено обновление: {update}")
+        # Получаем данные из запроса
+        data = await request.json()
+        logger.info(f"Получен вебхук: {data}")
+        
+        # Создаем объект Update
+        update = types.Update(**data)
+        
+        # Обрабатываем обновление
         await dp.process_update(update)
-        return web.Response()
+        
+        # Отвечаем успехом
+        return web.Response(text="OK")
     except Exception as e:
-        logger.error(f"Error processing webhook: {e}")
-        return web.Response(status=500)
+        logger.error(f"Ошибка при обработке вебхука: {e}")
+        return web.Response(text="Error", status=500)
 
 if __name__ == "__main__":
+    # Создаем приложение
     app = web.Application()
+    
+    # Добавляем маршруты
     app.router.add_get('/', handle_root)
     app.router.add_post(WEBHOOK_PATH, handle_webhook)
     
+    # Добавляем обработчики событий
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     
+    # Запускаем приложение
     web.run_app(
         app,
         host='0.0.0.0',
