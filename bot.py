@@ -99,6 +99,18 @@ def get_user_stats():
         'active_today': stats[2]
     }
 
+# Обработчик всех сообщений для логирования
+@dp.message_handler()
+async def log_message(message: Message):
+    logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
+    update_user_activity(message.from_user.id)
+
+# Обработчик всех callback-запросов для логирования
+@dp.callback_query_handler()
+async def log_callback(callback: CallbackQuery):
+    logger.info(f"Получен callback от {callback.from_user.id}: {callback.data}")
+    update_user_activity(callback.from_user.id)
+
 # Обработчик команды /start
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: Message):
@@ -303,16 +315,22 @@ def get_active_users(days):
 # Обработчик для health check
 async def on_startup(app):
     logger.info("Setting up webhook...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await bot.set_webhook(WEBHOOK_URL)
-    logger.info(f"Webhook set to: {WEBHOOK_URL}")
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        await bot.set_webhook(WEBHOOK_URL)
+        logger.info(f"Webhook set to: {WEBHOOK_URL}")
+    except Exception as e:
+        logger.error(f"Error setting up webhook: {e}")
 
 async def on_shutdown(app):
     logger.info("Shutting down...")
-    await bot.delete_webhook()
-    await dp.storage.close()
-    await dp.storage.wait_closed()
-    await bot.session.close()
+    try:
+        await bot.delete_webhook()
+        await dp.storage.close()
+        await dp.storage.wait_closed()
+        await bot.session.close()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 async def handle_root(request):
     return web.Response(text="Bot is running")
@@ -320,6 +338,7 @@ async def handle_root(request):
 async def handle_webhook(request):
     try:
         update = types.Update(**(await request.json()))
+        logger.info(f"Получено обновление: {update}")
         await dp.process_update(update)
         return web.Response()
     except Exception as e:
