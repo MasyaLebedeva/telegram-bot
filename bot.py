@@ -79,13 +79,18 @@ async def on_shutdown(dp):
     await dp.storage.wait_closed()
     await bot.session.close()
 
+from aiohttp import web
+
+async def handle_root(request):
+    return web.Response(text="Bot is running")
+
 if __name__ == "__main__":
-    executor.start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        skip_updates=True,
-        host="0.0.0.0",
+    app = web.Application()
+    app.router.add_get('/', handle_root)
+    app.router.add_post(WEBHOOK_PATH, dp._process_update)
+    
+    web.run_app(
+        app,
+        host='0.0.0.0',
         port=int(os.getenv("PORT", 10000))
     )
