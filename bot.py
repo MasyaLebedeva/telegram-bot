@@ -58,15 +58,19 @@ dp = Dispatcher(bot)
 init_db()
 
 # Middleware для логирования
-@dp.middleware_handler()
-async def log_middleware(handler, event, data):
-    if isinstance(event, Message):
-        logger.info(f"Получено сообщение от {event.from_user.id}: {event.text}")
-        update_user_activity(event.from_user.id)
-    elif isinstance(event, CallbackQuery):
-        logger.info(f"Получен callback от {event.from_user.id}: {event.data}")
-        update_user_activity(event.from_user.id)
-    return await handler(event, data)
+class LoggingMiddleware:
+    async def on_process_message(self, message: Message, data: dict):
+        logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
+        update_user_activity(message.from_user.id)
+        return data
+
+    async def on_process_callback_query(self, callback: CallbackQuery, data: dict):
+        logger.info(f"Получен callback от {callback.from_user.id}: {callback.data}")
+        update_user_activity(callback.from_user.id)
+        return data
+
+# Регистрируем middleware
+dp.middleware.setup(LoggingMiddleware())
 
 # Функции для работы с БД
 def add_user(user_id, username, first_name, last_name, language_code):
