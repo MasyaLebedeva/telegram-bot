@@ -294,25 +294,29 @@ async def process_admin_callback(callback: CallbackQuery):
                     ])
                 )
             elif action == "back":
-                stats = get_user_stats()
-                markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-                    [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
-                    [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
-                    [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
-                ])
-                
-                await callback.message.edit_text(
-                    f"👋 Добро пожаловать в админ-панель!\n\n"
-                    f"📈 Общая статистика:\n"
-                    f"👥 Всего пользователей: {stats['total_users']}\n"
-                    f"✅ Подписано: {stats['subscribed_users']}\n"
-                    f"🟢 Активных за сутки: {stats['active_today']}",
-                    reply_markup=markup
-                )
+                try:
+                    stats = get_user_stats()
+                    markup = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+                        [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
+                        [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
+                        [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
+                    ])
+                    
+                    await callback.message.edit_text(
+                        f"👋 Добро пожаловать в админ-панель!\n\n"
+                        f"📈 Общая статистика:\n"
+                        f"👥 Всего пользователей: {stats['total_users']}\n"
+                        f"✅ Подписано: {stats['subscribed_users']}\n"
+                        f"🟢 Активных за сутки: {stats['active_today']}",
+                        reply_markup=markup
+                    )
+                    logger.info(f"Обработка callback admin_back завершена успешно")
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке действия back: {type(e).__name__}: {e}")
+                    await callback.answer("❌ Произошла ошибка при возврате в главное меню")
             
             await callback.answer()
-            logger.info(f"Обработка callback {callback.data} завершена успешно")
         except Exception as e:
             logger.error(f"Ошибка при обработке действия {action}: {type(e).__name__}: {e}")
             await callback.answer("❌ Произошла ошибка при обработке запроса")
