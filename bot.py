@@ -5,6 +5,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.utils import executor
+from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiohttp import web
 
 # Настройка логирования
@@ -58,7 +59,7 @@ dp = Dispatcher(bot)
 init_db()
 
 # Middleware для логирования
-class LoggingMiddleware:
+class LoggingMiddleware(BaseMiddleware):
     async def on_process_message(self, message: Message, data: dict):
         logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
         update_user_activity(message.from_user.id)
