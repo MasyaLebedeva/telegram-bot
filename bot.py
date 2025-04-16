@@ -70,8 +70,10 @@ async def process_subscription(callback: CallbackQuery):
 
 # Webhook и health check
 async def webhook(request):
+    logger.info("Получен запрос на вебхук")
     try:
         data = await request.json()
+        logger.info(f"Данные вебхука: {data}")
         update = types.Update(**data)
         await dp.process_update(update)
         return web.json_response({"status": "ok"})
