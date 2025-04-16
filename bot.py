@@ -119,22 +119,33 @@ def get_user_stats():
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: Message):
     try:
-        logger.info(f"Обработка команды /start от {message.from_user.id}")
-        user = message.from_user
-        add_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
-        update_user_activity(user.id)
-        log_action(user.id, "start")
+        user_id = message.from_user.id
+        logger.info(f"Обработка команды /start от {user_id}")
         
+        # Добавляем пользователя в БД
+        add_user(user_id, message.from_user.username, message.from_user.first_name, 
+                message.from_user.last_name, message.from_user.language_code)
+        update_user_activity(user_id)
+        log_action(user_id, "start")
+        
+        # Создаем клавиатуру
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)],
             [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
         ])
+        
+        # Отправляем сообщение
         await message.answer(
             "👋 Привет! Чтобы получить ответы на Гигтесты, пожалуйста, подпишись на канал",
             reply_markup=markup
         )
+        logger.info(f"Сообщение отправлено пользователю {user_id}")
     except Exception as e:
         logger.error(f"Ошибка в обработчике /start: {e}")
+        try:
+            await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
+        except:
+            pass
 
 # Обработчик для админ-команд
 @dp.message_handler(commands=["admin"])
@@ -173,16 +184,20 @@ async def cmd_admin(message: Message):
 # Обработчик для check_subscription
 @dp.callback_query_handler(lambda c: c.data == "check_subscription")
 async def process_subscription(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    update_user_activity(user_id)
-    log_action(user_id, "check_subscription")
-    
-    logger.info(f"CHECK_SUB: Callback от {user_id}: {callback.data}")
     try:
+        user_id = callback.from_user.id
+        logger.info(f"CHECK_SUB: Callback от {user_id}: {callback.data}")
+        
+        # Обновляем активность пользователя
+        update_user_activity(user_id)
+        log_action(user_id, "check_subscription")
+        
+        # Проверяем статус подписки
         logger.info(f"CHECK_SUB: Проверка статуса для user_id={user_id} в канале {CHANNEL_ID}")
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
         logger.info(f"CHECK_SUB: Статус: {member.status}")
         
+        # Обновляем статус подписки в БД
         conn = sqlite3.connect('bot.db')
         c = conn.cursor()
         c.execute('UPDATE users SET is_subscribed = ? WHERE user_id = ?',
@@ -190,6 +205,7 @@ async def process_subscription(callback: CallbackQuery):
         conn.commit()
         conn.close()
         
+        # Отправляем соответствующее сообщение
         if member.status in ["member", "administrator", "creator"]:
             await bot.send_message(
                 user_id,
@@ -205,11 +221,16 @@ async def process_subscription(callback: CallbackQuery):
                 "😔 Упс. Кажется, ты не подписался на канал. Подпишись!",
                 reply_markup=markup
             )
+        
+        # Отвечаем на callback
         await callback.answer()
+        logger.info(f"CHECK_SUB: Обработка завершена для {user_id}")
     except Exception as e:
         logger.error(f"CHECK_SUB: Ошибка: {type(e).__name__}: {e}")
-        await bot.send_message(user_id, "😓 Ошибка проверки подписки. Попробуй позже.")
-        await callback.answer("Ошибка")
+        try:
+            await callback.answer("❌ Произошла ошибка. Попробуйте позже.")
+        except:
+            pass
 
 # Обработчик для админ-кнопок
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"))
@@ -392,15 +413,8 @@ async def handle_webhook(request):
         # Создаем объект Update
         update = types.Update(**data)
         
-        # Проверяем тип обновления
-        if update.message:
-            logger.info(f"Обработка сообщения: {update.message.text}")
-            await dp.process_update(update)
-        elif update.callback_query:
-            logger.info(f"Обработка callback: {update.callback_query.data}")
-            await dp.process_update(update)
-        else:
-            logger.warning(f"Неизвестный тип обновления: {update}")
+        # Обрабатываем обновление
+        await dp.process_update(update)
         
         # Отвечаем успехом
         return web.Response(text="OK")
