@@ -167,7 +167,8 @@ async def cmd_admin(message: Message):
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
         [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="📥 Экспорт данных", callback_data="admin_export")]
+        [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
+        [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
     ])
     
     await message.answer(
@@ -204,16 +205,79 @@ async def process_admin_callback(callback: CallbackQuery):
         )
     elif action == "broadcast":
         await callback.message.edit_text(
-            "📨 Отправьте сообщение для рассылки:",
+            "📨 Отправьте сообщение для рассылки:\n\n"
+            "Поддерживаются следующие типы сообщений:\n"
+            "• Текст\n"
+            "• Фото с подписью\n"
+            "• Документ с подписью",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
             ])
         )
-    elif action == "export":
-        # Здесь будет код для экспорта данных
-        await callback.answer("Экспорт данных будет реализован в следующей версии")
+    elif action == "users":
+        await callback.message.edit_text(
+            "👥 Управление пользователями:\n\n"
+            "Выберите действие:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Поиск пользователя", callback_data="admin_search_user")],
+                [InlineKeyboardButton(text="📋 Список пользователей", callback_data="admin_list_users")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+            ])
+        )
+    elif action == "settings":
+        await callback.message.edit_text(
+            "⚙️ Настройки бота:\n\n"
+            "Выберите настройку:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📢 Канал", callback_data="admin_channel_settings")],
+                [InlineKeyboardButton(text="📝 Приветственное сообщение", callback_data="admin_welcome_settings")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+            ])
+        )
     elif action == "back":
         await cmd_admin(callback.message)
+
+# Обработчик для рассылки
+@dp.message_handler(lambda message: message.from_user.id in ADMIN_IDS and message.reply_to_message and message.reply_to_message.text == "📨 Отправьте сообщение для рассылки:")
+async def process_broadcast(message: Message):
+    try:
+        conn = sqlite3.connect('bot.db')
+        c = conn.cursor()
+        c.execute('SELECT user_id FROM users')
+        users = c.fetchall()
+        conn.close()
+        
+        success = 0
+        failed = 0
+        
+        for user_id in users:
+            try:
+                await message.copy_to(user_id[0])
+                success += 1
+            except Exception as e:
+                failed += 1
+                logger.error(f"Failed to send broadcast to {user_id[0]}: {e}")
+        
+        await message.answer(
+            f"✅ Рассылка завершена!\n\n"
+            f"📊 Результаты:\n"
+            f"• Успешно отправлено: {success}\n"
+            f"• Не удалось отправить: {failed}"
+        )
+    except Exception as e:
+        logger.error(f"Broadcast error: {e}")
+        await message.answer("❌ Произошла ошибка при рассылке")
+
+# Функция для получения количества активных пользователей
+def get_active_users(days):
+    conn = sqlite3.connect('bot.db')
+    c = conn.cursor()
+    c.execute('''SELECT COUNT(*) FROM users 
+                 WHERE last_activity > datetime('now', ?)''', 
+              (f'-{days} days',))
+    count = c.fetchone()[0]
+    conn.close()
+    return count
 
 # Обработчик для health check
 async def on_startup(app):
