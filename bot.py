@@ -103,9 +103,14 @@ async def on_startup(_):
 # Запуск сервера
 async def start_app():
     try:
+        port = os.getenv("PORT")
+        logger.info(f"Получен PORT из окружения: {port}")
+        if not port:
+            raise ValueError("Переменная окружения PORT не задана")
+        port = int(port)
+        logger.info(f"Используемый порт: {port}")
         runner = web.AppRunner(app)
         await runner.setup()
-        port = int(os.getenv("PORT"))  # Используем только $PORT
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
         logger.info(f"Бот @gigtestibot запущен на порту {port}")
