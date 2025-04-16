@@ -128,7 +128,9 @@ async def start_app():
 if __name__ == "__main__":
     try:
         logger.info("Запуск приложения...")
-        web.run_app(start_app(), host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
+        port = os.getenv("PORT", "8080")  # 8080 для локального запуска, Render должен переопределить
+        logger.info(f"Финальный порт для запуска: {port}")
+        web.run_app(start_app(), host="0.0.0.0", port=int(port))
     except KeyboardInterrupt:
         logger.info("Бот остановлен")
     except Exception as e:
