@@ -345,12 +345,19 @@ async def on_startup(app):
         logger.info("Старый вебхук удален")
         
         # Устанавливаем новый вебхук
-        await bot.set_webhook(WEBHOOK_URL)
+        await bot.set_webhook(
+            url=WEBHOOK_URL,
+            allowed_updates=["message", "callback_query"]
+        )
         logger.info(f"Webhook set to: {WEBHOOK_URL}")
         
         # Проверяем статус вебхука
         webhook_info = await bot.get_webhook_info()
         logger.info(f"Webhook info: {webhook_info}")
+        
+        # Проверяем соединение с Telegram
+        me = await bot.get_me()
+        logger.info(f"Bot info: {me}")
     except Exception as e:
         logger.error(f"Ошибка при настройке вебхука: {e}")
         raise
@@ -385,8 +392,15 @@ async def handle_webhook(request):
         # Создаем объект Update
         update = types.Update(**data)
         
-        # Обрабатываем обновление
-        await dp.process_update(update)
+        # Проверяем тип обновления
+        if update.message:
+            logger.info(f"Обработка сообщения: {update.message.text}")
+            await dp.process_update(update)
+        elif update.callback_query:
+            logger.info(f"Обработка callback: {update.callback_query.data}")
+            await dp.process_update(update)
+        else:
+            logger.warning(f"Неизвестный тип обновления: {update}")
         
         # Отвечаем успехом
         return web.Response(text="OK")
