@@ -2,7 +2,6 @@ import os
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiohttp import web
 
@@ -12,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
+logger.info(f"TELEGRAM_TOKEN: {'установлен' if API_TOKEN else 'не установлен'}")
 if not API_TOKEN:
     raise ValueError("TELEGRAM_TOKEN не задан в переменных окружения")
 CHANNEL_ID = "-1001324681912"
@@ -78,10 +78,11 @@ async def webhook(request):
         await dp.process_update(update)
         return web.json_response({"status": "ok"})
     except Exception as e:
-        logger.error(f"Webhook ошибка: {e}")
+        logger.error(f"Webhook ошибка: {type(e).__name__}: {e}")
         return web.json_response({"status": "error"}, status=500)
 
 async def health(request):
+    logger.info("Получен запрос на /health")
     return web.json_response({"status": "healthy"})
 
 # Добавление маршрутов
@@ -97,7 +98,7 @@ async def on_startup(_):
         await bot.set_webhook(WEBHOOK_URL)
         logger.info("Webhook успешно установлен для @gigtestibot")
     except Exception as e:
-        logger.error(f"Ошибка установки webhook: {e}")
+        logger.error(f"Ошибка установки webhook: {type(e).__name__}: {e}")
         raise
 
 # Запуск сервера
@@ -107,7 +108,11 @@ async def start_app():
         logger.info(f"Получен PORT из окружения: {port}")
         if not port:
             raise ValueError("Переменная окружения PORT не задана")
-        port = int(port)
+        try:
+            port = int(port)
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования PORT в число: {e}")
+            raise
         logger.info(f"Используемый порт: {port}")
         runner = web.AppRunner(app)
         await runner.setup()
@@ -115,14 +120,17 @@ async def start_app():
         await site.start()
         logger.info(f"Бот @gigtestibot запущен на порту {port}")
         await on_startup(None)
+        return app  # Возвращаем приложение для запуска
     except Exception as e:
-        logger.error(f"Ошибка запуска сервера: {e}")
+        logger.error(f"Ошибка запуска сервера: {type(e).__name__}: {e}")
         raise
 
 if __name__ == "__main__":
     try:
-        asyncio.run(start_app())
+        logger.info("Запуск приложения...")
+        web.run_app(start_app(), host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
     except KeyboardInterrupt:
         logger.info("Бот остановлен")
     except Exception as e:
-        logger.error(f"Критическая ошибка: {e}")
+        logger.error(f"Критическая ошибка: {type(e).__name__}: {e}")
+        raise
