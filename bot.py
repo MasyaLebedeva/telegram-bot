@@ -380,10 +380,10 @@ async def on_startup(app):
         me = await bot.get_me()
         logger.info(f"Bot info: {me}")
         
-        # Проверяем доступность бота
+        # Проверяем доступность бота через getMe
         try:
-            await bot.send_message(me.id, "Бот запущен и готов к работе!")
-            logger.info("Проверка доступности бота успешна")
+            bot_info = await bot.get_me()
+            logger.info(f"Проверка доступности бота успешна: {bot_info}")
         except Exception as e:
             logger.error(f"Ошибка при проверке доступности бота: {e}")
     except Exception as e:
@@ -417,17 +417,16 @@ async def handle_webhook(request):
         data = await request.json()
         logger.info(f"Получен вебхук: {data}")
         
-        # Проверяем тип обновления
-        if "message" in data:
-            logger.info(f"Получено сообщение: {data['message']}")
-            update = types.Update(**data)
+        # Создаем объект Update
+        update = types.Update(**data)
+        
+        # Обрабатываем обновление
+        try:
             await dp.process_update(update)
-        elif "callback_query" in data:
-            logger.info(f"Получен callback_query: {data['callback_query']}")
-            update = types.Update(**data)
-            await dp.process_update(update)
-        else:
-            logger.warning(f"Неизвестный тип обновления: {data}")
+            logger.info("Обновление успешно обработано")
+        except Exception as e:
+            logger.error(f"Ошибка при обработке обновления: {type(e).__name__}: {e}")
+            return web.Response(text="Error", status=500)
         
         return web.Response(text="OK")
     except Exception as e:
