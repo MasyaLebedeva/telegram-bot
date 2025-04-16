@@ -16,6 +16,8 @@ API_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]  # ID админов через запятую
 if not API_TOKEN:
     raise ValueError("TELEGRAM_TOKEN не задан в переменных окружения")
+if not ADMIN_IDS:
+    logger.warning("ADMIN_IDS не заданы в переменных окружения. Бот будет работать без админ-панели.")
 CHANNEL_ID = "-1001324681912"
 CHANNEL_LINK = "https://t.me/lebedevamariiatgm"
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
@@ -235,7 +237,26 @@ async def process_admin_callback(callback: CallbackQuery):
             ])
         )
     elif action == "back":
-        await cmd_admin(callback.message)
+        # Проверяем права администратора перед возвратом в главное меню
+        if callback.from_user.id not in ADMIN_IDS:
+            await callback.answer("⛔️ У вас нет доступа")
+            return
+        stats = get_user_stats()
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
+            [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
+        ])
+        
+        await callback.message.edit_text(
+            f"👋 Добро пожаловать в админ-панель!\n\n"
+            f"📈 Общая статистика:\n"
+            f"👥 Всего пользователей: {stats['total_users']}\n"
+            f"✅ Подписано: {stats['subscribed_users']}\n"
+            f"🟢 Активных за сутки: {stats['active_today']}",
+            reply_markup=markup
+        )
 
 # Обработчик для рассылки
 @dp.message_handler(lambda message: message.from_user.id in ADMIN_IDS and message.reply_to_message and message.reply_to_message.text == "📨 Отправьте сообщение для рассылки:")
