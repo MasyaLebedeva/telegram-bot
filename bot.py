@@ -21,6 +21,7 @@ WEBHOOK_URL = f"https://gigtest-bot-new.onrender.com{WEBHOOK_PATH}"
 # Инициализация
 logger.info("Инициализация бота @gigtestibot...")
 bot = Bot(token=API_TOKEN)
+Bot.set_current(bot)  # Устанавливаем текущий экземпляр бота
 dp = Dispatcher(bot)
 app = web.Application()
 
