@@ -17,7 +17,7 @@ if not API_TOKEN:
 CHANNEL_ID = "-1001324681912"
 CHANNEL_LINK = "https://t.me/lebedevamariiatgm"
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-WEBHOOK_URL = f"https://gigtest-bot.onrender.com{WEBHOOK_PATH}"
+WEBHOOK_URL = f"https://gigtest-bot-new.onrender.com{WEBHOOK_PATH}"
 
 # Инициализация
 logger.info("Инициализация бота @gigtestibot...")
