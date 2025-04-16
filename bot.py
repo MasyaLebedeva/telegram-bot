@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+from aiogram.utils import executor
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiohttp import web
 
@@ -22,7 +22,7 @@ WEBHOOK_URL = f"https://gigtest-bot.onrender.com{WEBHOOK_PATH}"
 # Инициализация
 logger.info("Инициализация бота @gigtestibot...")
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot=bot)
+dp = Dispatcher(bot)
 app = web.Application()
 
 # Обработчик команды /start
