@@ -104,6 +104,10 @@ def get_user_stats():
 async def log_message(message: Message):
     logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
     update_user_activity(message.from_user.id)
+    # Добавляем отладочную информацию
+    logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
+    logger.info(f"User ID: {message.from_user.id}")
+    logger.info(f"Is admin: {message.from_user.id in ADMIN_IDS}")
 
 # Обработчик всех callback-запросов для логирования
 @dp.callback_query_handler()
@@ -114,20 +118,24 @@ async def log_callback(callback: CallbackQuery):
 # Обработчик команды /start
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: Message):
-    user = message.from_user
-    add_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
-    update_user_activity(user.id)
-    log_action(user.id, "start")
-    
-    logger.info(f"START: Команда /start от {user.id}")
-    markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)],
-        [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
-    ])
-    await message.answer(
-        "👋 Привет! Чтобы получить ответы на Гигтесты, пожалуйста, подпишись на канал",
-        reply_markup=markup
-    )
+    try:
+        logger.info(f"Обработка команды /start от {message.from_user.id}")
+        user = message.from_user
+        add_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
+        update_user_activity(user.id)
+        log_action(user.id, "start")
+        
+        logger.info(f"START: Команда /start от {user.id}")
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)],
+            [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
+        ])
+        await message.answer(
+            "👋 Привет! Чтобы получить ответы на Гигтесты, пожалуйста, подпишись на канал",
+            reply_markup=markup
+        )
+    except Exception as e:
+        logger.error(f"Ошибка в обработчике /start: {e}")
 
 # Обработчик для check_subscription
 @dp.callback_query_handler(lambda c: c.data == "check_subscription")
@@ -173,26 +181,34 @@ async def process_subscription(callback: CallbackQuery):
 # Обработчик для админ-команд
 @dp.message_handler(commands=["admin"])
 async def cmd_admin(message: Message):
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("⛔️ У вас нет доступа к админ-панели")
-        return
-    
-    stats = get_user_stats()
-    markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
-        [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
-    ])
-    
-    await message.answer(
-        f"👋 Добро пожаловать в админ-панель!\n\n"
-        f"📈 Общая статистика:\n"
-        f"👥 Всего пользователей: {stats['total_users']}\n"
-        f"✅ Подписано: {stats['subscribed_users']}\n"
-        f"🟢 Активных за сутки: {stats['active_today']}",
-        reply_markup=markup
-    )
+    try:
+        logger.info(f"Обработка команды /admin от {message.from_user.id}")
+        logger.info(f"ADMIN_IDS: {ADMIN_IDS}")
+        logger.info(f"User ID: {message.from_user.id}")
+        logger.info(f"Is admin: {message.from_user.id in ADMIN_IDS}")
+        
+        if message.from_user.id not in ADMIN_IDS:
+            await message.answer("⛔️ У вас нет доступа к админ-панели")
+            return
+        
+        stats = get_user_stats()
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
+            [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
+        ])
+        
+        await message.answer(
+            f"👋 Добро пожаловать в админ-панель!\n\n"
+            f"📈 Общая статистика:\n"
+            f"👥 Всего пользователей: {stats['total_users']}\n"
+            f"✅ Подписано: {stats['subscribed_users']}\n"
+            f"🟢 Активных за сутки: {stats['active_today']}",
+            reply_markup=markup
+        )
+    except Exception as e:
+        logger.error(f"Ошибка в обработчике /admin: {e}")
 
 # Обработчик для админ-кнопок
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"))
