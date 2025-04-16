@@ -115,122 +115,122 @@ def get_user_stats():
         'active_today': stats[2]
     }
 
-# Обработчик команды /start
-@dp.message_handler(commands=["start"])
-async def cmd_start(message: Message):
-    try:
-        user_id = message.from_user.id
-        logger.info(f"Обработка команды /start от {user_id}")
-        
-        # Добавляем пользователя в БД
-        add_user(user_id, message.from_user.username, message.from_user.first_name, 
-                message.from_user.last_name, message.from_user.language_code)
-        update_user_activity(user_id)
-        log_action(user_id, "start")
-        
-        # Создаем клавиатуру
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)],
-            [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
-        ])
-        
-        # Отправляем сообщение
-        await message.answer(
-            "👋 Привет! Чтобы получить ответы на Гигтесты, пожалуйста, подпишись на канал",
-            reply_markup=markup
-        )
-        logger.info(f"Сообщение отправлено пользователю {user_id}")
-    except Exception as e:
-        logger.error(f"Ошибка в обработчике /start: {e}")
+# Регистрируем обработчики
+def register_handlers(dp: Dispatcher):
+    # Обработчик команды /start
+    @dp.message_handler(commands=["start"])
+    async def cmd_start(message: Message):
         try:
-            await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
-        except:
-            pass
-
-# Обработчик для админ-команд
-@dp.message_handler(commands=["admin"])
-async def cmd_admin(message: Message):
-    try:
-        user_id = message.from_user.id
-        logger.info(f"Обработка команды /admin от {user_id}")
-        
-        if user_id not in ADMIN_IDS:
-            logger.warning(f"Попытка доступа к админ-панели от неавторизованного пользователя {user_id}")
-            await message.answer("⛔️ У вас нет доступа к админ-панели")
-            return
-        
-        logger.info(f"Пользователь {user_id} получил доступ к админ-панели")
-        stats = get_user_stats()
-        
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-            [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
-            [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
-        ])
-        
-        await message.answer(
-            f"👋 Добро пожаловать в админ-панель!\n\n"
-            f"📈 Общая статистика:\n"
-            f"👥 Всего пользователей: {stats['total_users']}\n"
-            f"✅ Подписано: {stats['subscribed_users']}\n"
-            f"🟢 Активных за сутки: {stats['active_today']}",
-            reply_markup=markup
-        )
-    except Exception as e:
-        logger.error(f"Ошибка в обработчике /admin: {e}")
-        await message.answer("❌ Произошла ошибка при открытии админ-панели")
-
-# Обработчик для check_subscription
-@dp.callback_query_handler(lambda c: c.data == "check_subscription")
-async def process_subscription(callback: CallbackQuery):
-    try:
-        user_id = callback.from_user.id
-        logger.info(f"CHECK_SUB: Callback от {user_id}: {callback.data}")
-        
-        # Обновляем активность пользователя
-        update_user_activity(user_id)
-        log_action(user_id, "check_subscription")
-        
-        # Проверяем статус подписки
-        logger.info(f"CHECK_SUB: Проверка статуса для user_id={user_id} в канале {CHANNEL_ID}")
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        logger.info(f"CHECK_SUB: Статус: {member.status}")
-        
-        # Обновляем статус подписки в БД
-        conn = sqlite3.connect('bot.db')
-        c = conn.cursor()
-        c.execute('UPDATE users SET is_subscribed = ? WHERE user_id = ?',
-                  (1 if member.status in ["member", "administrator", "creator"] else 0, user_id))
-        conn.commit()
-        conn.close()
-        
-        # Отправляем соответствующее сообщение
-        if member.status in ["member", "administrator", "creator"]:
-            await bot.send_message(
-                user_id,
-                "🎉 Спасибо за подписку. Держи файл с ответами на тесты: "
-                "https://docs.google.com/document/d/1wRpzasug5kSagNZgtG2QlSRMyK-7PP3ZYvNcejoDkoo/edit?usp=sharing"
-            )
-        else:
+            user_id = message.from_user.id
+            logger.info(f"Обработка команды /start от {user_id}")
+            
+            add_user(user_id, message.from_user.username, message.from_user.first_name, 
+                    message.from_user.last_name, message.from_user.language_code)
+            update_user_activity(user_id)
+            log_action(user_id, "start")
+            
             markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)]
+                [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)],
+                [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
             ])
-            await bot.send_message(
-                user_id,
-                "😔 Упс. Кажется, ты не подписался на канал. Подпишись!",
+            
+            await message.answer(
+                "👋 Привет! Чтобы получить ответы на Гигтесты, пожалуйста, подпишись на канал",
                 reply_markup=markup
             )
-        
-        # Отвечаем на callback
-        await callback.answer()
-        logger.info(f"CHECK_SUB: Обработка завершена для {user_id}")
-    except Exception as e:
-        logger.error(f"CHECK_SUB: Ошибка: {type(e).__name__}: {e}")
+            logger.info(f"Сообщение отправлено пользователю {user_id}")
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике /start: {e}")
+            try:
+                await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
+            except:
+                pass
+
+    # Обработчик для check_subscription
+    @dp.callback_query_handler(lambda c: c.data == "check_subscription")
+    async def process_subscription(callback: CallbackQuery):
         try:
-            await callback.answer("❌ Произошла ошибка. Попробуйте позже.")
-        except:
-            pass
+            user_id = callback.from_user.id
+            logger.info(f"CHECK_SUB: Callback от {user_id}: {callback.data}")
+            
+            update_user_activity(user_id)
+            log_action(user_id, "check_subscription")
+            
+            logger.info(f"CHECK_SUB: Проверка статуса для user_id={user_id} в канале {CHANNEL_ID}")
+            member = await bot.get_chat_member(CHANNEL_ID, user_id)
+            logger.info(f"CHECK_SUB: Статус: {member.status}")
+            
+            conn = sqlite3.connect('bot.db')
+            c = conn.cursor()
+            c.execute('UPDATE users SET is_subscribed = ? WHERE user_id = ?',
+                      (1 if member.status in ["member", "administrator", "creator"] else 0, user_id))
+            conn.commit()
+            conn.close()
+            
+            if member.status in ["member", "administrator", "creator"]:
+                await bot.send_message(
+                    user_id,
+                    "🎉 Спасибо за подписку. Держи файл с ответами на тесты: "
+                    "https://docs.google.com/document/d/1wRpzasug5kSagNZgtG2QlSRMyK-7PP3ZYvNcejoDkoo/edit?usp=sharing"
+                )
+            else:
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)]
+                ])
+                await bot.send_message(
+                    user_id,
+                    "😔 Упс. Кажется, ты не подписался на канал. Подпишись!",
+                    reply_markup=markup
+                )
+            
+            await callback.answer()
+            logger.info(f"CHECK_SUB: Обработка завершена для {user_id}")
+        except Exception as e:
+            logger.error(f"CHECK_SUB: Ошибка: {type(e).__name__}: {e}")
+            try:
+                await callback.answer("❌ Произошла ошибка. Попробуйте позже.")
+            except:
+                pass
+
+    # Обработчик для админ-команд
+    @dp.message_handler(commands=["admin"])
+    async def cmd_admin(message: Message):
+        try:
+            user_id = message.from_user.id
+            logger.info(f"Обработка команды /admin от {user_id}")
+            
+            if user_id not in ADMIN_IDS:
+                logger.warning(f"Попытка доступа к админ-панели от неавторизованного пользователя {user_id}")
+                await message.answer("⛔️ У вас нет доступа к админ-панели")
+                return
+            
+            logger.info(f"Пользователь {user_id} получил доступ к админ-панели")
+            stats = get_user_stats()
+            
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+                [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_broadcast")],
+                [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
+                [InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin_settings")]
+            ])
+            
+            await message.answer(
+                f"👋 Добро пожаловать в админ-панель!\n\n"
+                f"📈 Общая статистика:\n"
+                f"👥 Всего пользователей: {stats['total_users']}\n"
+                f"✅ Подписано: {stats['subscribed_users']}\n"
+                f"🟢 Активных за сутки: {stats['active_today']}",
+                reply_markup=markup
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике /admin: {e}")
+            try:
+                await message.answer("❌ Произошла ошибка при открытии админ-панели")
+            except:
+                pass
+
+# Регистрируем обработчики
+register_handlers(dp)
 
 # Обработчик для админ-кнопок
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"))
@@ -406,17 +406,12 @@ async def handle_root(request):
 
 async def handle_webhook(request):
     try:
-        # Получаем данные из запроса
         data = await request.json()
         logger.info(f"Получен вебхук: {data}")
         
-        # Создаем объект Update
         update = types.Update(**data)
-        
-        # Обрабатываем обновление
         await dp.process_update(update)
         
-        # Отвечаем успехом
         return web.Response(text="OK")
     except Exception as e:
         logger.error(f"Ошибка при обработке вебхука: {e}")
