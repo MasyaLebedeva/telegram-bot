@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
-logger.info(f"TELEGRAM_TOKEN: {'установлен' if API_TOKEN else 'не установлен'}")
 if not API_TOKEN:
     raise ValueError("TELEGRAM_TOKEN не задан в переменных окружения")
 CHANNEL_ID = "-1001324681912"
@@ -78,11 +77,10 @@ async def webhook(request):
         await dp.process_update(update)
         return web.json_response({"status": "ok"})
     except Exception as e:
-        logger.error(f"Webhook ошибка: {type(e).__name__}: {e}")
+        logger.error(f"Webhook ошибка: {e}")
         return web.json_response({"status": "error"}, status=500)
 
 async def health(request):
-    logger.info("Получен запрос на /health")
     return web.json_response({"status": "healthy"})
 
 # Добавление маршрутов
@@ -98,119 +96,34 @@ async def on_startup(_):
         await bot.set_webhook(WEBHOOK_URL)
         logger.info("Webhook успешно установлен для @gigtestibot")
     except Exception as e:
-        logger.error(f"Ошибка установки webhook: {type(e).__name__}: {e}")
+        logger.error(f"Ошибка установки webhook: {e}")
         raise
 
 # Запуск сервера
 async def start_app():
     try:
-        port = os.getenv("PORT")
-        logger.info(f"Получен PORT из окружения: {port}")
-        if not port:
-            raise ValueError("Переменная окружения PORT не задана")
-        try:
-            port = int(port)
-        except ValueError as e:
-            logger.error(f"Ошибка преобразования PORT в число: {e}")
-            raise
-        logger.info(f"Используемый порт: {port}")
         runner = web.AppRunner(app)
         await runner.setup()
+        port = int(os.getenv("PORT", 10000))
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
         logger.info(f"Бот @gigtestibot запущен на порту {port}")
         await on_startup(None)
-        return app  # Возвращаем приложение для запуска
+        
+        # Ожидаем завершения работы
+        while True:
+            await asyncio.sleep(3600)
     except Exception as e:
-        logger.error(f"Ошибка запуска сервера: {type(e).__name__}: {e}")
+        logger.error(f"Ошибка запуска сервера: {e}")
         raise
-import socket
-
-# Запуск сервера
-async def start_app():
-    try:
-        port = os.getenv("PORT")
-        logger.info(f"Получен PORT из окружения: {port}")
-        if not port:
-            raise ValueError("Переменная окружения PORT не задана")
-        try:
-            port = int(port)
-        except ValueError as e:
-            logger.error(f"Ошибка преобразования PORT в число: {e}")
-            raise
-        # Проверка доступности порта
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind(("0.0.0.0", port))
-                logger.info(f"Порт {port} свободен")
-            except OSError as e:
-                logger.error(f"Порт {port} занят: {type(e).__name__}: {e}")
-                raise
-        logger.info(f"Используемый порт: {port}")
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        await site.start()
-        logger.info(f"Бот @gigtestibot запущен на порту {port}")
-        await on_startup(None)
-        return app
-    except Exception as e:
-        logger.error(f"Ошибка запуска сервера: {type(e).__name__}: {e}")
-        raise
-
-import socket
-
-# Запуск сервера
-async def start_app():
-    try:
-        port = os.getenv("PORT")
-        logger.info(f"Получен PORT из окружения: {port}")
-        if not port:
-            raise ValueError("Переменная окружения PORT не задана")
-        try:
-            port = int(port)
-        except ValueError as e:
-            logger.error(f"Ошибка преобразования PORT в число: {e}")
-            raise
-        # Проверка доступности порта
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind(("0.0.0.0", port))
-                logger.info(f"Порт {port} свободен")
-            except OSError as e:
-                logger.error(f"Порт {port} занят: {type(e).__name__}: {e}")
-                raise
-        logger.info(f"Используемый порт: {port}")
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        await site.start()
-        logger.info(f"Бот @gigtestibot запущен на порту {port}")
-        await on_startup(None)
-        return app
-    except Exception as e:
-        logger.error(f"Ошибка запуска сервера: {type(e).__name__}: {e}")
-        raise
+    finally:
+        await runner.cleanup()
+        await bot.session.close()
 
 if __name__ == "__main__":
     try:
-        logger.info("Запуск приложения...")
-        port = os.getenv("PORT", "8080")
-        logger.info(f"Финальный порт для запуска: {port}")
-        # Проверка доступности порта
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind(("0.0.0.0", int(port)))
-                logger.info(f"Порт {port} доступен для запуска")
-            except OSError as e:
-                logger.error(f"Порт {port} занят перед запуском: {type(e).__name__}: {e}")
-                raise
-        web.run_app(start_app(), host="0.0.0.0", port=int(port))
+        web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
     except KeyboardInterrupt:
         logger.info("Бот остановлен")
     except Exception as e:
-        logger.error(f"Критическая ошибка: {type(e).__name__}: {e}")
-        raise
+        logger.error(f"Критическая ошибка: {e}")
