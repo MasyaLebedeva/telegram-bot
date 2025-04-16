@@ -431,7 +431,15 @@ async def handle_webhook(request):
         update = types.Update(**data)
         
         try:
-            await dp.process_update(update)
+            if update.message:
+                logger.info(f"Обработка сообщения: {update.message.text}")
+                await dp.process_message(update.message)
+            elif update.callback_query:
+                logger.info(f"Обработка callback: {update.callback_query.data}")
+                await dp.process_callback_query(update.callback_query)
+            else:
+                logger.warning(f"Неизвестный тип обновления: {update}")
+            
             logger.info("Обновление успешно обработано")
             return web.Response(text="OK")
         except Exception as e:
