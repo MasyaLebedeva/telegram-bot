@@ -479,35 +479,34 @@ async def process_list_users(callback: CallbackQuery):
 
 # Обработчик для health check
 async def on_startup(app):
-    logger.info("Настройка вебхука...")
+    """Настройка при запуске"""
+    logger.info("Настройка webhook...")
     try:
-        # Удаляем старый вебхук
+        # Удаляем старый webhook
         await bot.delete_webhook(drop_pending_updates=True)
-        logger.info("Старый вебхук удален")
+        logger.info("Старый webhook удален")
         
-        # Устанавливаем новый вебхук
+        # Устанавливаем новый webhook
         await bot.set_webhook(
             url=WEBHOOK_URL,
             allowed_updates=["message", "callback_query"]
         )
         logger.info(f"Webhook установлен: {WEBHOOK_URL}")
         
-        # Проверяем статус вебхука
+        # Проверяем статус webhook
         webhook_info = await bot.get_webhook_info()
-        logger.info(f"Информация о вебхуке: {webhook_info}")
+        logger.info(f"Информация о webhook: {webhook_info}")
         
         # Проверяем соединение с Telegram
         me = await bot.get_me()
         logger.info(f"Информация о боте: {me}")
         
-        # Проверяем доступность бота
-        try:
-            bot_info = await bot.get_me()
-            logger.info(f"Проверка доступности бота успешна: {bot_info}")
-        except Exception as e:
-            logger.error(f"Ошибка при проверке доступности бота: {e}")
+        # Регистрируем обработчики
+        register_handlers(dp)
+        logger.info("Обработчики зарегистрированы")
+        
     except Exception as e:
-        logger.error(f"Ошибка при настройке вебхука: {e}")
+        logger.error(f"Ошибка при настройке webhook: {e}")
         raise
 
 async def on_shutdown(app):
@@ -543,10 +542,17 @@ async def handle_webhook(request: Request):
         update = types.Update.de_json(data, bot)
         logger.info(f"Создан объект Update: {update}")
         
-        # Обрабатываем обновление
-        await dp.process_update(update)
-        logger.info("Обновление успешно обработано")
+        # Проверяем тип обновления
+        if update.message:
+            logger.info(f"Получено сообщение от {update.message.from_user.id}: {update.message.text}")
+            await dp.process_message(update.message)
+        elif update.callback_query:
+            logger.info(f"Получен callback от {update.callback_query.from_user.id}: {update.callback_query.data}")
+            await dp.process_callback_query(update.callback_query)
+        else:
+            logger.warning(f"Неизвестный тип обновления: {update}")
         
+        logger.info("Обновление успешно обработано")
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Ошибка при обработке webhook: {str(e)}")
