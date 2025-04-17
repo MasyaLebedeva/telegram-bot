@@ -3,7 +3,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Update
 from aiogram.utils import executor
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiohttp import web
@@ -541,7 +541,7 @@ async def handle_webhook(request: web.Request):
         logger.info(f"Получен webhook: {data}")
         
         # Создаем объект Update
-        update = types.Update.de_json(data, bot)
+        update = Update(**data)
         logger.info(f"Создан объект Update: {update}")
         
         # Обрабатываем обновление
