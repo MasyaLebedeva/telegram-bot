@@ -403,6 +403,55 @@ def get_active_users(days):
     conn.close()
     return count
 
+@dp.callback_query_handler(lambda c: c.data == "admin_list_users")
+async def process_list_users(callback: CallbackQuery):
+    try:
+        user_id = callback.from_user.id
+        logger.info(f"Обработка callback admin_list_users от {user_id}")
+        
+        if user_id not in ADMIN_IDS:
+            logger.warning(f"Попытка доступа к списку пользователей от неавторизованного пользователя {user_id}")
+            await callback.answer("⛔️ У вас нет доступа")
+            return
+        
+        conn = sqlite3.connect('bot.db')
+        c = conn.cursor()
+        c.execute('SELECT user_id, username, first_name, last_name, is_subscribed, last_activity FROM users ORDER BY last_activity DESC LIMIT 10')
+        users = c.fetchall()
+        conn.close()
+        
+        if not users:
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+            ])
+            await callback.message.edit_text(
+                "👥 Список пользователей пуст",
+                reply_markup=markup
+            )
+            return
+        
+        text = "👥 Список пользователей:\n\n"
+        for user in users:
+            user_id, username, first_name, last_name, is_subscribed, last_activity = user
+            text += f"👤 {first_name} {last_name or ''} (@{username or 'нет'})\n"
+            text += f"🆔 ID: {user_id}\n"
+            text += f"✅ Подписка: {'Да' if is_subscribed else 'Нет'}\n"
+            text += f"🕒 Последняя активность: {last_activity}\n\n"
+        
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+        ])
+        
+        await callback.message.edit_text(text, reply_markup=markup)
+        await callback.answer()
+        logger.info(f"Список пользователей успешно отправлен для {user_id}")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке списка пользователей: {type(e).__name__}: {e}")
+        try:
+            await callback.answer("❌ Произошла ошибка при получении списка пользователей")
+        except:
+            pass
+
 # Обработчик для health check
 async def on_startup(app):
     logger.info("Настройка вебхука...")
