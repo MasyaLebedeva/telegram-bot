@@ -74,6 +74,10 @@ class LoggingMiddleware(BaseMiddleware):
         update_user_activity(callback.from_user.id)
         return data
 
+    async def on_process_update(self, update: Update, data: dict):
+        logger.info(f"Получено обновление: {update}")
+        return data
+
 # Регистрируем middleware
 dp.middleware.setup(LoggingMiddleware())
 
@@ -567,9 +571,6 @@ async def handle_webhook(request: web.Request):
         return web.json_response({"status": "error", "message": str(e)}, status=500)
 
 if __name__ == "__main__":
-    # Регистрируем обработчики
-    register_handlers(dp)
-    
     # Добавляем маршруты
     app.router.add_get('/', handle_root)
     app.router.add_post(WEBHOOK_PATH, handle_webhook)
