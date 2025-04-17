@@ -156,7 +156,8 @@ async def cmd_start(message: Message):
             [InlineKeyboardButton(text="Проверить подписку ✅", callback_data="check_subscription")]
         ])
         
-        await message.answer(
+        await bot.send_message(
+            user_id,
             "👋 Привет! Чтобы получить ответы на Гигтесты, пожалуйста, подпишись на канал",
             reply_markup=markup
         )
@@ -166,7 +167,7 @@ async def cmd_start(message: Message):
         logger.error(f"Тип ошибки: {type(e).__name__}")
         logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
         try:
-            await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
+            await bot.send_message(user_id, "❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
         except:
             pass
 
@@ -557,9 +558,8 @@ async def handle_webhook(request):
         update = types.Update(**data)
         logging.info(f"Created update object: {update}")
         
-        # Устанавливаем бота в контекст для этого запроса
-        async with Bot.set_current(bot):
-            await dp.process_update(update)
+        # Обрабатываем обновление
+        await dp.process_update(update)
         return web.Response(text="OK")
     except Exception as e:
         logging.error(f"Error processing webhook: {str(e)}", exc_info=True)
