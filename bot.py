@@ -8,6 +8,7 @@ from aiogram.utils import executor
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from flask import Flask, request, jsonify
 import traceback
+import asyncio
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -604,17 +605,18 @@ def health_check():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    # Добавляем маршруты
-    app.router.add_get('/', handle_root)
-    app.router.add_post(WEBHOOK_PATH, handle_webhook)
+    # Инициализация базы данных
+    init_db()
     
-    # Добавляем обработчики событий
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
+    # Установка вебхука
+    async def setup_webhook():
+        webhook_url = f"https://gigtest-bot-new.onrender.com/webhook/{API_TOKEN}"
+        await bot.delete_webhook()
+        await bot.set_webhook(webhook_url)
+        logger.info(f"Webhook установлен: {webhook_url}")
     
     # Запускаем приложение
-    web.run_app(
-        app,
-        host='0.0.0.0',
-        port=int(os.getenv("PORT", 10000))
-    )
+    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
+    
+    # Устанавливаем вебхук
+    asyncio.run(setup_webhook())
