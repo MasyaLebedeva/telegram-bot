@@ -166,7 +166,9 @@ async def cmd_start(message: Message):
         )
         logger.info(f"Сообщение отправлено пользователю {user_id}")
     except Exception as e:
-        logger.error(f"Ошибка в обработчике /start: {e}")
+        logger.error(f"Ошибка в обработчике /start: {str(e)}")
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
         try:
             await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
         except:
@@ -211,7 +213,9 @@ async def process_subscription(callback: CallbackQuery):
         await callback.answer()
         logger.info(f"CHECK_SUB: Обработка завершена для {user_id}")
     except Exception as e:
-        logger.error(f"CHECK_SUB: Ошибка: {type(e).__name__}: {e}")
+        logger.error(f"CHECK_SUB: Ошибка: {str(e)}")
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
         try:
             await callback.answer("❌ Произошла ошибка. Попробуйте позже.")
         except:
@@ -545,10 +549,16 @@ async def handle_webhook(request: web.Request):
         logger.info(f"Создан объект Update: {update}")
         
         # Обрабатываем обновление
-        await dp.process_update(update)
-        logger.info("Обновление успешно обработано")
-        
-        return web.json_response({"status": "ok"})
+        try:
+            await dp.process_update(update)
+            logger.info("Обновление успешно обработано")
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            logger.error(f"Ошибка при обработке обновления: {str(e)}")
+            logger.error(f"Тип ошибки: {type(e).__name__}")
+            logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
+            
     except Exception as e:
         logger.error(f"Ошибка при обработке webhook: {str(e)}")
         logger.error(f"Тип ошибки: {type(e).__name__}")
