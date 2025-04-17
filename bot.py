@@ -544,17 +544,10 @@ async def handle_webhook(request: web.Request):
         update = types.Update.de_json(data, bot)
         logger.info(f"Создан объект Update: {update}")
         
-        # Проверяем тип обновления
-        if update.message:
-            logger.info(f"Получено сообщение от {update.message.from_user.id}: {update.message.text}")
-            await dp.process_message(update.message)
-        elif update.callback_query:
-            logger.info(f"Получен callback от {update.callback_query.from_user.id}: {update.callback_query.data}")
-            await dp.process_callback_query(update.callback_query)
-        else:
-            logger.warning(f"Неизвестный тип обновления: {update}")
-        
+        # Обрабатываем обновление
+        await dp.process_update(update)
         logger.info("Обновление успешно обработано")
+        
         return web.json_response({"status": "ok"})
     except Exception as e:
         logger.error(f"Ошибка при обработке webhook: {str(e)}")
