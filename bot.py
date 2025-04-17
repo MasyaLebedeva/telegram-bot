@@ -1,13 +1,14 @@
 import os
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Update
 from aiogram.utils import executor
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiohttp import web
 import traceback
+from flask import jsonify
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -563,6 +564,10 @@ async def handle_webhook(request: web.Request):
         data = await request.json()
         logger.info(f"Получен webhook: {data}")
         
+        # Сохраняем время последней активности
+        with open("last_activity.txt", "w") as f:
+            f.write(datetime.now().isoformat())
+        
         # Создаем объект Update
         update = types.Update(**data)
         logger.info(f"Создан объект Update: {update}")
@@ -584,6 +589,27 @@ async def handle_webhook(request: web.Request):
         logger.error(f"Тип ошибки: {type(e).__name__}")
         logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
         return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+@app.route('/health')
+async def health_check():
+    """Эндпоинт для проверки состояния бота"""
+    try:
+        # Проверяем подключение к базе данных
+        with sqlite3.connect('users.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        
+        # Проверяем время последней активности
+        with open('last_activity.txt', 'r') as f:
+            last_activity = datetime.fromisoformat(f.read().strip())
+            if datetime.now() - last_activity > timedelta(minutes=10):
+                return jsonify({"status": "warning", "message": "Бот неактивен более 10 минут"}), 200
+        
+        return jsonify({"status": "ok", "message": "Бот работает нормально"}), 200
+    except Exception as e:
+        logger.error(f"Ошибка при проверке состояния: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     # Добавляем маршруты
