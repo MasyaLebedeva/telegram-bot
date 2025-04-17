@@ -548,30 +548,16 @@ async def handle_webhook(request: web.Request):
         update = types.Update(**data)
         logger.info(f"Создан объект Update: {update}")
         
-        # Проверяем тип обновления
-        if update.message:
-            logger.info(f"Получено сообщение от {update.message.from_user.id}: {update.message.text}")
-            try:
-                await dp.process_message(update.message)
-                logger.info("Сообщение успешно обработано")
-            except Exception as e:
-                logger.error(f"Ошибка при обработке сообщения: {str(e)}")
-                logger.error(f"Тип ошибки: {type(e).__name__}")
-                logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-        
-        elif update.callback_query:
-            logger.info(f"Получен callback от {update.callback_query.from_user.id}: {update.callback_query.data}")
-            try:
-                await dp.process_callback_query(update.callback_query)
-                logger.info("Callback успешно обработан")
-            except Exception as e:
-                logger.error(f"Ошибка при обработке callback: {str(e)}")
-                logger.error(f"Тип ошибки: {type(e).__name__}")
-                logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-        
-        else:
-            logger.warning(f"Получен неизвестный тип обновления: {update}")
-        
+        # Обрабатываем обновление
+        try:
+            await dp.process_update(update)
+            logger.info("Обновление успешно обработано")
+        except Exception as e:
+            logger.error(f"Ошибка при обработке обновления: {str(e)}")
+            logger.error(f"Тип ошибки: {type(e).__name__}")
+            logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
+            
         return web.json_response({"status": "ok"})
             
     except Exception as e:
