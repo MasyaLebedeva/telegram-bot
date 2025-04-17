@@ -618,13 +618,14 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"Ошибка при установке webhook: {e}")
     
-    # Запускаем приложение через Gunicorn
+    # Запускаем приложение
     if os.environ.get("GUNICORN_CMD_ARGS"):
         # В продакшене
         loop = asyncio.get_event_loop()
         loop.run_until_complete(setup_webhook())
+        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
     else:
         # В режиме разработки
-        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
         loop = asyncio.get_event_loop()
         loop.run_until_complete(setup_webhook())
+        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
