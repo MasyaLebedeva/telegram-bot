@@ -6,9 +6,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Update
 from aiogram.utils import executor
 from aiogram.dispatcher.middlewares import BaseMiddleware
-from aiohttp import web
+from flask import Flask, request, jsonify
 import traceback
-from flask import Flask, jsonify
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -19,17 +18,31 @@ app = Flask(__name__)
 
 # Конфигурация
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]  # ID админов через запятую
-if not API_TOKEN:
-    raise ValueError("TELEGRAM_TOKEN не задан в переменных окружения")
-if not ADMIN_IDS:
-    logger.warning("ADMIN_IDS не заданы в переменных окружения. Бот будет работать без админ-панели.")
+ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 CHANNEL_ID = "-1001324681912"
 CHANNEL_LINK = "https://t.me/lebedevamariiatgm"
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-WEBHOOK_URL = f"https://gigtest-bot-new.onrender.com{WEBHOOK_PATH}"
 
-# Инициализация базы данных
+# Инициализация бота
+logger.info("Инициализация бота @gigtestibot...")
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
+
+# Middleware для логирования
+class LoggingMiddleware(BaseMiddleware):
+    async def on_process_message(self, message: Message, data: dict):
+        logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
+        update_user_activity(message.from_user.id)
+        return data
+
+    async def on_process_callback_query(self, callback: CallbackQuery, data: dict):
+        logger.info(f"Получен callback от {callback.from_user.id}: {callback.data}")
+        update_user_activity(callback.from_user.id)
+        return data
+
+# Регистрируем middleware
+dp.middleware.setup(LoggingMiddleware())
+
+# Функции для работы с БД
 def init_db():
     conn = sqlite3.connect('bot.db')
     c = conn.cursor()
@@ -56,33 +69,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Инициализация
-logger.info("Инициализация бота @gigtestibot...")
-bot = Bot(token=API_TOKEN)
-Bot.set_current(bot)  # Устанавливаем текущий экземпляр бота
-dp = Dispatcher(bot)
-init_db()
-
-# Middleware для логирования
-class LoggingMiddleware(BaseMiddleware):
-    async def on_process_message(self, message: Message, data: dict):
-        logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
-        update_user_activity(message.from_user.id)
-        return data
-
-    async def on_process_callback_query(self, callback: CallbackQuery, data: dict):
-        logger.info(f"Получен callback от {callback.from_user.id}: {callback.data}")
-        update_user_activity(callback.from_user.id)
-        return data
-
-    async def on_process_update(self, update: Update, data: dict):
-        logger.info(f"Получено обновление: {update}")
-        return data
-
-# Регистрируем middleware
-dp.middleware.setup(LoggingMiddleware())
-
-# Функции для работы с БД
 def add_user(user_id, username, first_name, last_name, language_code):
     conn = sqlite3.connect('bot.db')
     c = conn.cursor()
