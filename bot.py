@@ -7,6 +7,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, C
 from aiogram.utils import executor
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiohttp import web
+import traceback
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -116,6 +117,30 @@ def get_user_stats():
     }
 
 # Регистрируем обработчики
+def register_handlers(dp):
+    """Регистрация всех обработчиков"""
+    logger.info("Регистрация обработчиков...")
+    
+    # Регистрируем обработчики команд
+    dp.register_message_handler(cmd_start, commands=["start"])
+    dp.register_message_handler(cmd_admin, commands=["admin"])
+    
+    # Регистрируем обработчики callback-запросов
+    dp.register_callback_query_handler(process_subscription, lambda c: c.data == "check_subscription")
+    dp.register_callback_query_handler(process_admin_callback, lambda c: c.data.startswith("admin_"))
+    dp.register_callback_query_handler(process_broadcast_callback, lambda c: c.data == "admin_broadcast")
+    dp.register_callback_query_handler(process_list_users, lambda c: c.data == "admin_list_users")
+    
+    # Регистрируем обработчик рассылки
+    dp.register_message_handler(
+        process_broadcast_message,
+        lambda message: message.from_user.id in ADMIN_IDS and 
+        message.reply_to_message and 
+        message.reply_to_message.text.startswith("📨 Отправьте сообщение для рассылки:")
+    )
+    
+    logger.info("Обработчики успешно зарегистрированы")
+
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: Message):
     try:
@@ -506,28 +531,35 @@ async def on_shutdown(app):
 async def handle_root(request):
     return web.Response(text="Bot is running")
 
-async def handle_webhook(request):
+@app.post(f"/webhook/{API_TOKEN}")
+async def handle_webhook(request: Request):
+    """Обработка входящих webhook-запросов"""
     try:
+        # Получаем данные из webhook
         data = await request.json()
-        logger.info(f"Получен вебхук: {data}")
+        logger.info(f"Получен webhook: {data}")
         
-        update = types.Update(**data)
+        # Создаем объект Update
+        update = types.Update.de_json(data, bot)
         logger.info(f"Создан объект Update: {update}")
         
-        try:
-            await dp.process_update(update)
-            logger.info("Обновление успешно обработано")
-            return web.Response(text="OK")
-        except Exception as e:
-            logger.error(f"Ошибка при обработке обновления: {type(e).__name__}: {e}")
-            return web.Response(text="Error", status=500)
+        # Обрабатываем обновление
+        await dp.process_update(update)
+        logger.info("Обновление успешно обработано")
+        
+        return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Ошибка при обработке вебхука: {type(e).__name__}: {e}")
-        return web.Response(text="Error", status=500)
+        logger.error(f"Ошибка при обработке webhook: {str(e)}")
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     # Создаем приложение
     app = web.Application()
+    
+    # Регистрируем обработчики
+    register_handlers(dp)
     
     # Добавляем маршруты
     app.router.add_get('/', handle_root)
