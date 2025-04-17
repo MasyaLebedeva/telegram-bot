@@ -615,8 +615,11 @@ if __name__ == "__main__":
         await bot.set_webhook(webhook_url)
         logger.info(f"Webhook установлен: {webhook_url}")
     
-    # Запускаем приложение
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
-    
-    # Устанавливаем вебхук
-    asyncio.run(setup_webhook())
+    # Запускаем приложение через Gunicorn
+    if os.environ.get("GUNICORN_CMD_ARGS"):
+        # В продакшене
+        asyncio.run(setup_webhook())
+    else:
+        # В режиме разработки
+        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
+        asyncio.run(setup_webhook())
