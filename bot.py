@@ -9,6 +9,9 @@ from aiogram.dispatcher.middlewares import BaseMiddleware
 from flask import Flask, request, jsonify
 import traceback
 import asyncio
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiohttp import web
+from dotenv import load_dotenv
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -545,43 +548,24 @@ async def on_shutdown(app):
 def handle_root():
     return "Bot is running"
 
-@app.route('/webhook/<token>', methods=['POST'])
-async def handle_webhook(token):
-    """Обработка входящих webhook-запросов"""
+async def handle_webhook(request):
     try:
-        # Проверяем токен
-        if token != API_TOKEN:
-            return jsonify({"status": "error", "message": "Invalid token"}), 403
+        data = await request.json()
+        logging.info(f"Received webhook data: {data}")
         
-        # Получаем данные из webhook
-        data = await request.get_json()
-        logger.info(f"Получен webhook: {data}")
-        
-        # Сохраняем время последней активности
-        with open("last_activity.txt", "w") as f:
-            f.write(datetime.now().isoformat())
-        
-        # Создаем объект Update
         update = types.Update(**data)
-        logger.info(f"Создан объект Update: {update}")
+        logging.info(f"Created update object: {update}")
         
-        # Обрабатываем обновление
-        try:
-            await dp.process_update(update)
-            logger.info("Обновление успешно обработано")
-        except Exception as e:
-            logger.error(f"Ошибка при обработке обновления: {str(e)}")
-            logger.error(f"Тип ошибки: {type(e).__name__}")
-            logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-            return jsonify({"status": "error", "message": str(e)}), 500
-            
-        return jsonify({"status": "ok"})
-            
+        await dp.process_update(update)
+        return web.Response(text="OK")
     except Exception as e:
-        logger.error(f"Ошибка при обработке webhook: {str(e)}")
-        logger.error(f"Тип ошибки: {type(e).__name__}")
-        logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logging.error(f"Error processing webhook: {str(e)}", exc_info=True)
+        return web.Response(text="Error", status=500)
+
+async def init_app():
+    app = web.Application()
+    app.router.add_post(f'/webhook/{API_TOKEN}', handle_webhook)
+    return app
 
 @app.route('/health')
 def health_check():
@@ -608,24 +592,5 @@ if __name__ == "__main__":
     # Инициализация базы данных
     init_db()
     
-    # Установка вебхука
-    async def setup_webhook():
-        try:
-            webhook_url = f"https://gigtest-bot-new.onrender.com/webhook/{API_TOKEN}"
-            await bot.delete_webhook()
-            await bot.set_webhook(webhook_url)
-            logger.info(f"Webhook установлен: {webhook_url}")
-        except Exception as e:
-            logger.error(f"Ошибка при установке webhook: {e}")
-    
-    # Запускаем приложение
-    if os.environ.get("GUNICORN_CMD_ARGS"):
-        # В продакшене
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(setup_webhook())
-        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
-    else:
-        # В режиме разработки
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(setup_webhook())
-        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
+    # Запуск приложения
+    web.run_app(init_app(), port=int(os.getenv("PORT", 10000)))
