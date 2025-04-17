@@ -541,7 +541,7 @@ async def handle_webhook(request: web.Request):
         logger.info(f"Получен webhook: {data}")
         
         # Создаем объект Update
-        update = Update(**data)
+        update = types.Update(**data)
         logger.info(f"Создан объект Update: {update}")
         
         # Обрабатываем обновление
