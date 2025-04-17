@@ -8,14 +8,14 @@ from aiogram.utils import executor
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiohttp import web
 import traceback
-from flask import jsonify
+from flask import Flask, jsonify
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Создаем приложение
-app = web.Application()
+# Создаем приложение Flask
+app = Flask(__name__)
 
 # Конфигурация
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -554,14 +554,20 @@ async def on_shutdown(app):
     except Exception as e:
         logger.error(f"Ошибка при завершении работы: {e}")
 
-async def handle_root(request):
-    return web.Response(text="Bot is running")
+@app.route('/')
+def handle_root():
+    return "Bot is running"
 
-async def handle_webhook(request: web.Request):
+@app.route('/webhook/<token>', methods=['POST'])
+async def handle_webhook(token):
     """Обработка входящих webhook-запросов"""
     try:
+        # Проверяем токен
+        if token != API_TOKEN:
+            return jsonify({"status": "error", "message": "Invalid token"}), 403
+        
         # Получаем данные из webhook
-        data = await request.json()
+        data = await request.get_json()
         logger.info(f"Получен webhook: {data}")
         
         # Сохраняем время последней активности
@@ -580,18 +586,18 @@ async def handle_webhook(request: web.Request):
             logger.error(f"Ошибка при обработке обновления: {str(e)}")
             logger.error(f"Тип ошибки: {type(e).__name__}")
             logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-            return web.json_response({"status": "error", "message": str(e)}, status=500)
+            return jsonify({"status": "error", "message": str(e)}), 500
             
-        return web.json_response({"status": "ok"})
+        return jsonify({"status": "ok"})
             
     except Exception as e:
         logger.error(f"Ошибка при обработке webhook: {str(e)}")
         logger.error(f"Тип ошибки: {type(e).__name__}")
         logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-        return web.json_response({"status": "error", "message": str(e)}, status=500)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/health')
-async def health_check():
+def health_check():
     """Эндпоинт для проверки состояния бота"""
     try:
         # Проверяем подключение к базе данных
