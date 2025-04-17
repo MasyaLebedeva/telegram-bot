@@ -610,16 +610,21 @@ if __name__ == "__main__":
     
     # Установка вебхука
     async def setup_webhook():
-        webhook_url = f"https://gigtest-bot-new.onrender.com/webhook/{API_TOKEN}"
-        await bot.delete_webhook()
-        await bot.set_webhook(webhook_url)
-        logger.info(f"Webhook установлен: {webhook_url}")
+        try:
+            webhook_url = f"https://gigtest-bot-new.onrender.com/webhook/{API_TOKEN}"
+            await bot.delete_webhook()
+            await bot.set_webhook(webhook_url)
+            logger.info(f"Webhook установлен: {webhook_url}")
+        except Exception as e:
+            logger.error(f"Ошибка при установке webhook: {e}")
     
     # Запускаем приложение через Gunicorn
     if os.environ.get("GUNICORN_CMD_ARGS"):
         # В продакшене
-        asyncio.run(setup_webhook())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(setup_webhook())
     else:
         # В режиме разработки
         app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
-        asyncio.run(setup_webhook())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(setup_webhook())
