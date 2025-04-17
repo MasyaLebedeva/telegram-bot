@@ -13,6 +13,9 @@ import traceback
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Создаем приложение
+app = web.Application()
+
 # Конфигурация
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]  # ID админов через запятую
@@ -530,8 +533,8 @@ async def on_shutdown(app):
 async def handle_root(request):
     return web.Response(text="Bot is running")
 
-@app.post(f"/webhook/{API_TOKEN}")
-async def handle_webhook(request: Request):
+@app.post(WEBHOOK_PATH)
+async def handle_webhook(request: web.Request):
     """Обработка входящих webhook-запросов"""
     try:
         # Получаем данные из webhook
@@ -553,17 +556,14 @@ async def handle_webhook(request: Request):
             logger.warning(f"Неизвестный тип обновления: {update}")
         
         logger.info("Обновление успешно обработано")
-        return {"status": "ok"}
+        return web.json_response({"status": "ok"})
     except Exception as e:
         logger.error(f"Ошибка при обработке webhook: {str(e)}")
         logger.error(f"Тип ошибки: {type(e).__name__}")
         logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
-        return {"status": "error", "message": str(e)}
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
 
 if __name__ == "__main__":
-    # Создаем приложение
-    app = web.Application()
-    
     # Регистрируем обработчики
     register_handlers(dp)
     
