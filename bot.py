@@ -30,6 +30,7 @@ CHANNEL_LINK = "https://t.me/lebedevamariiatgm"
 logger.info("Инициализация бота @gigtestibot...")
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
+Bot.set_current(bot)  # Устанавливаем текущий экземпляр бота
 
 # Middleware для логирования
 class LoggingMiddleware(BaseMiddleware):
@@ -556,7 +557,9 @@ async def handle_webhook(request):
         update = types.Update(**data)
         logging.info(f"Created update object: {update}")
         
-        await dp.process_update(update)
+        # Устанавливаем бота в контекст для этого запроса
+        async with Bot.set_current(bot):
+            await dp.process_update(update)
         return web.Response(text="OK")
     except Exception as e:
         logging.error(f"Error processing webhook: {str(e)}", exc_info=True)
