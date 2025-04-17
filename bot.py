@@ -371,7 +371,7 @@ def get_active_users(days):
 
 # Обработчик для health check
 async def on_startup(app):
-    logger.info("Setting up webhook...")
+    logger.info("Настройка вебхука...")
     try:
         # Удаляем старый вебхук
         await bot.delete_webhook(drop_pending_updates=True)
@@ -382,17 +382,17 @@ async def on_startup(app):
             url=WEBHOOK_URL,
             allowed_updates=["message", "callback_query"]
         )
-        logger.info(f"Webhook set to: {WEBHOOK_URL}")
+        logger.info(f"Webhook установлен: {WEBHOOK_URL}")
         
         # Проверяем статус вебхука
         webhook_info = await bot.get_webhook_info()
-        logger.info(f"Webhook info: {webhook_info}")
+        logger.info(f"Информация о вебхуке: {webhook_info}")
         
         # Проверяем соединение с Telegram
         me = await bot.get_me()
-        logger.info(f"Bot info: {me}")
+        logger.info(f"Информация о боте: {me}")
         
-        # Проверяем доступность бота через getMe
+        # Проверяем доступность бота
         try:
             bot_info = await bot.get_me()
             logger.info(f"Проверка доступности бота успешна: {bot_info}")
@@ -425,23 +425,27 @@ async def handle_root(request):
 
 async def handle_webhook(request):
     try:
+        # Получаем данные вебхука
         data = await request.json()
         logger.info(f"Получен вебхук: {data}")
         
+        # Создаем объект Update
+        update = types.Update(**data)
+        logger.info(f"Создан объект Update: {update}")
+        
+        # Обрабатываем обновление
         try:
-            update = types.Update(**data)
-            logger.info(f"Создан объект Update: {update}")
-            
             if update.message:
-                logger.info(f"Обработка сообщения: {update.message.text}")
+                logger.info(f"Обработка сообщения от {update.message.from_user.id}: {update.message.text}")
                 await dp.process_message(update.message)
+                logger.info(f"Сообщение от {update.message.from_user.id} обработано")
             elif update.callback_query:
-                logger.info(f"Обработка callback: {update.callback_query.data}")
+                logger.info(f"Обработка callback от {update.callback_query.from_user.id}: {update.callback_query.data}")
                 await dp.process_callback_query(update.callback_query)
+                logger.info(f"Callback от {update.callback_query.from_user.id} обработан")
             else:
                 logger.warning(f"Неизвестный тип обновления: {update}")
             
-            logger.info("Обновление успешно обработано")
             return web.Response(text="OK")
         except Exception as e:
             logger.error(f"Ошибка при обработке обновления: {type(e).__name__}: {e}")
