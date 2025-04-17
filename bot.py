@@ -533,7 +533,6 @@ async def on_shutdown(app):
 async def handle_root(request):
     return web.Response(text="Bot is running")
 
-@app.post(WEBHOOK_PATH)
 async def handle_webhook(request: web.Request):
     """Обработка входящих webhook-запросов"""
     try:
