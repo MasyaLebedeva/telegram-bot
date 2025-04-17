@@ -435,17 +435,8 @@ async def handle_webhook(request):
         
         # Обрабатываем обновление
         try:
-            if update.message:
-                logger.info(f"Обработка сообщения от {update.message.from_user.id}: {update.message.text}")
-                await dp.process_message(update.message)
-                logger.info(f"Сообщение от {update.message.from_user.id} обработано")
-            elif update.callback_query:
-                logger.info(f"Обработка callback от {update.callback_query.from_user.id}: {update.callback_query.data}")
-                await dp.process_callback_query(update.callback_query)
-                logger.info(f"Callback от {update.callback_query.from_user.id} обработан")
-            else:
-                logger.warning(f"Неизвестный тип обновления: {update}")
-            
+            await dp.process_update(update)
+            logger.info("Обновление успешно обработано")
             return web.Response(text="OK")
         except Exception as e:
             logger.error(f"Ошибка при обработке обновления: {type(e).__name__}: {e}")
@@ -457,6 +448,9 @@ async def handle_webhook(request):
 if __name__ == "__main__":
     # Создаем приложение
     app = web.Application()
+    
+    # Регистрируем обработчики
+    register_handlers(dp)
     
     # Добавляем маршруты
     app.router.add_get('/', handle_root)
