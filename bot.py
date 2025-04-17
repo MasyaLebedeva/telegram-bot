@@ -182,42 +182,57 @@ async def cmd_start(message: Message):
 async def process_subscription(callback: CallbackQuery):
     try:
         user_id = callback.from_user.id
-        logger.info(f"CHECK_SUB: Callback от {user_id}: {callback.data}")
+        logger.info(f"CHECK_SUB: Начало обработки callback от {user_id}: {callback.data}")
         
+        # Обновляем активность пользователя
         update_user_activity(user_id)
         log_action(user_id, "check_subscription")
         
+        # Проверяем статус подписки
         logger.info(f"CHECK_SUB: Проверка статуса для user_id={user_id} в канале {CHANNEL_ID}")
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        logger.info(f"CHECK_SUB: Статус: {member.status}")
-        
-        conn = sqlite3.connect('bot.db')
-        c = conn.cursor()
-        c.execute('UPDATE users SET is_subscribed = ? WHERE user_id = ?',
-                  (1 if member.status in ["member", "administrator", "creator"] else 0, user_id))
-        conn.commit()
-        conn.close()
-        
-        if member.status in ["member", "administrator", "creator"]:
-            await bot.send_message(
-                user_id,
-                "🎉 Спасибо за подписку. Держи файл с ответами на тесты: "
-                "https://docs.google.com/document/d/1wRpzasug5kSagNZgtG2QlSRMyK-7PP3ZYvNcejoDkoo/edit?usp=sharing"
-            )
-        else:
-            markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)]
-            ])
-            await bot.send_message(
-                user_id,
-                "😔 Упс. Кажется, ты не подписался на канал. Подпишись!",
-                reply_markup=markup
-            )
-        
-        await callback.answer()
-        logger.info(f"CHECK_SUB: Обработка завершена для {user_id}")
+        try:
+            member = await bot.get_chat_member(CHANNEL_ID, user_id)
+            logger.info(f"CHECK_SUB: Статус: {member.status}")
+            
+            # Обновляем статус подписки в БД
+            conn = sqlite3.connect('bot.db')
+            c = conn.cursor()
+            c.execute('UPDATE users SET is_subscribed = ? WHERE user_id = ?',
+                      (1 if member.status in ["member", "administrator", "creator"] else 0, user_id))
+            conn.commit()
+            conn.close()
+            
+            # Отправляем соответствующее сообщение
+            if member.status in ["member", "administrator", "creator"]:
+                logger.info(f"CHECK_SUB: Пользователь {user_id} подписан")
+                await bot.send_message(
+                    user_id,
+                    "🎉 Спасибо за подписку. Держи файл с ответами на тесты: "
+                    "https://docs.google.com/document/d/1wRpzasug5kSagNZgtG2QlSRMyK-7PP3ZYvNcejoDkoo/edit?usp=sharing"
+                )
+            else:
+                logger.info(f"CHECK_SUB: Пользователь {user_id} не подписан")
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Подписаться на канал 📢", url=CHANNEL_LINK)]
+                ])
+                await bot.send_message(
+                    user_id,
+                    "😔 Упс. Кажется, ты не подписался на канал. Подпишись!",
+                    reply_markup=markup
+                )
+            
+            # Отвечаем на callback
+            await callback.answer()
+            logger.info(f"CHECK_SUB: Обработка завершена для {user_id}")
+            
+        except Exception as e:
+            logger.error(f"CHECK_SUB: Ошибка при проверке подписки: {str(e)}")
+            logger.error(f"Тип ошибки: {type(e).__name__}")
+            logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
+            await callback.answer("❌ Произошла ошибка при проверке подписки. Попробуйте позже.")
+            
     except Exception as e:
-        logger.error(f"CHECK_SUB: Ошибка: {str(e)}")
+        logger.error(f"CHECK_SUB: Критическая ошибка: {str(e)}")
         logger.error(f"Тип ошибки: {type(e).__name__}")
         logger.error(f"Полный стек ошибки: {traceback.format_exc()}")
         try:
