@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Конфигурация
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'bot.db')
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 CHANNEL_ID = "-1001324681912"
@@ -49,7 +51,7 @@ dp.middleware.setup(LoggingMiddleware())
 
 # Функции для работы с БД
 def init_db():
-    conn = sqlite3.connect('bot.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
     # Таблица пользователей
@@ -75,7 +77,7 @@ def init_db():
     conn.close()
 
 def add_user(user_id, username, first_name, last_name, language_code):
-    conn = sqlite3.connect('bot.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''INSERT OR IGNORE INTO users 
                  (user_id, username, first_name, last_name, language_code, joined_at, last_activity)
@@ -85,7 +87,7 @@ def add_user(user_id, username, first_name, last_name, language_code):
     conn.close()
 
 def update_user_activity(user_id):
-    conn = sqlite3.connect('bot.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('UPDATE users SET last_activity = ? WHERE user_id = ?',
               (datetime.now(), user_id))
@@ -93,7 +95,7 @@ def update_user_activity(user_id):
     conn.close()
 
 def log_action(user_id, action):
-    conn = sqlite3.connect('bot.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('INSERT INTO stats (user_id, action, timestamp) VALUES (?, ?, ?)',
               (user_id, action, datetime.now()))
@@ -101,7 +103,7 @@ def log_action(user_id, action):
     conn.close()
 
 def get_user_stats():
-    conn = sqlite3.connect('bot.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''SELECT COUNT(*) as total_users,
                         COUNT(CASE WHEN is_subscribed = 1 THEN 1 END) as subscribed_users,
@@ -188,7 +190,7 @@ async def process_subscription(callback: CallbackQuery):
             logger.info(f"CHECK_SUB: Статус: {member.status}")
             
             # Обновляем статус подписки в БД
-            conn = sqlite3.connect('bot.db')
+            conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute('UPDATE users SET is_subscribed = ? WHERE user_id = ?',
                       (1 if member.status in ["member", "administrator", "creator"] else 0, user_id))
@@ -268,6 +270,34 @@ async def cmd_admin(message: Message):
             await message.answer("❌ Произошла ошибка при открытии админ-панели")
         except:
             pass
+
+@dp.message_handler(commands=["stats_raw"])
+async def cmd_stats_raw(message: Message):
+    user_id = message.from_user.id
+    if user_id not in ADMIN_IDS:
+        await message.answer("⛔️ У вас нет доступа")
+        return
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users")
+        total = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM users WHERE is_subscribed = 1")
+        subs = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM users WHERE last_activity > datetime('now','-1 day')")
+        active = c.fetchone()[0]
+        c.execute("SELECT user_id, username, first_name, last_name, last_activity FROM users ORDER BY last_activity DESC LIMIT 10")
+        rows = c.fetchall()
+        conn.close()
+
+        rows_text = "\n".join([f"ID {r[0]} @{r[1] or '—'} {r[2] or ''} {r[3] or ''} | {r[4]}" for r in rows]) or "—"
+        await message.answer(
+            f"DB: {DB_PATH}\n"
+            f"Всего: {total}\nПодписано: {subs}\nАктивны 24ч: {active}\n\nПоследние 10:\n{rows_text}"
+        )
+    except Exception as e:
+        logger.error(f"stats_raw error: {e}")
+        await message.answer("❌ Ошибка stats_raw")
 
 # Обработчик для админ-кнопок
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"))
@@ -404,7 +434,7 @@ async def process_broadcast_message(message: Message):
         user_id = message.from_user.id
         logger.info(f"Обработка сообщения для рассылки от {user_id}")
         
-        conn = sqlite3.connect('bot.db')
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute('SELECT user_id FROM users')
         users = c.fetchall()
@@ -438,7 +468,7 @@ async def process_broadcast_message(message: Message):
 
 # Функция для получения количества активных пользователей
 def get_active_users(days):
-    conn = sqlite3.connect('bot.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''SELECT COUNT(*) FROM users 
                  WHERE last_activity > datetime('now', ?)''', 
@@ -458,7 +488,7 @@ async def process_list_users(callback: CallbackQuery):
             await callback.answer("⛔️ У вас нет доступа")
             return
         
-        conn = sqlite3.connect('bot.db')
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute('SELECT user_id, username, first_name, last_name, is_subscribed, last_activity FROM users ORDER BY last_activity DESC LIMIT 10')
         users = c.fetchall()
@@ -574,10 +604,10 @@ async def init_app():
 def health_check():
     """Эндпоинт для проверки состояния бота"""
     try:
-        # Проверяем подключение к базе данных
-        with sqlite3.connect('users.db') as conn:
+        # Проверяем подключение к базе данных (та же база, что и у бота)
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute("SELECT COUNT(*) FROM users")
             cursor.fetchone()
         
         # Проверяем время последней активности
