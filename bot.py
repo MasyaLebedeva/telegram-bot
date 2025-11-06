@@ -718,7 +718,10 @@ async def process_list_users(callback: CallbackQuery):
 async def handle_webhook(request):
     try:
         # Логируем входящий запрос
+        logger.info("=" * 50)
+        logger.info(f"WEBHOOK: ====== НОВЫЙ ЗАПРОС ======")
         logger.info(f"WEBHOOK: Получен HTTP запрос: {request.method} {request.path_qs}")
+        logger.info(f"WEBHOOK: URL: {request.url}")
         logger.info(f"WEBHOOK: Headers: {dict(request.headers)}")
         
         # Проверяем, есть ли данные
@@ -747,21 +750,26 @@ async def handle_webhook(request):
             logger.info(f"WEBHOOK: Тип обновления: {update.message and 'message' or update.callback_query and 'callback_query' or 'unknown'}")
             
             # Обрабатываем обновление
+            logger.info(f"WEBHOOK: Вызов dp.process_update для update_id={data.get('update_id', 'unknown')}")
             await dp.process_update(update)
-            logger.info(f"WEBHOOK: Обновление {data.get('update_id', 'unknown')} обработано успешно")
+            logger.info(f"WEBHOOK: ✅ Обновление {data.get('update_id', 'unknown')} обработано успешно")
         except Exception as process_error:
-            logger.error(f"WEBHOOK: Ошибка при process_update: {process_error}")
+            logger.error(f"WEBHOOK: ❌ Ошибка при process_update: {process_error}")
             logger.error(f"WEBHOOK: Тип ошибки process_update: {type(process_error).__name__}")
             logger.error(f"WEBHOOK: Трассировка process_update: {traceback.format_exc()}")
             # НЕ поднимаем исключение, чтобы вернуть ответ Telegram
             # Telegram будет повторять отправку, если не вернем 200 OK
             pass
         
+        logger.info(f"WEBHOOK: Отправка ответа 'OK'")
+        logger.info("=" * 50)
         return web.Response(text="OK")
     except Exception as e:
-        logger.error(f"WEBHOOK: Ошибка при обработке webhook: {str(e)}")
+        logger.error("=" * 50)
+        logger.error(f"WEBHOOK: ❌❌❌ КРИТИЧЕСКАЯ ОШИБКА при обработке webhook: {str(e)}")
         logger.error(f"WEBHOOK: Тип ошибки: {type(e).__name__}")
         logger.error(f"WEBHOOK: Трассировка: {traceback.format_exc()}")
+        logger.error("=" * 50)
         return web.Response(text="Error", status=500)
 
 # Health check endpoint для мониторинга
