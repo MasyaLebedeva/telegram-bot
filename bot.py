@@ -37,12 +37,16 @@ if not API_TOKEN:
 # Инициализация бота
 logger.info("Инициализация бота @gigtestibot...")
 try:
+    storage = MemoryStorage()
     bot = Bot(token=API_TOKEN)
     dp = Dispatcher(bot)
+    dp.storage = storage
     Bot.set_current(bot)
-    logger.info("Бот успешно инициализирован")
+    logger.info("Бот успешно инициализирован с storage")
 except Exception as e:
     logger.error(f"ОШИБКА при инициализации бота: {e}")
+    logger.error(f"Тип ошибки: {type(e).__name__}")
+    logger.error(f"Трассировка: {traceback.format_exc()}")
     raise
 
 # Функции для работы с БД (определяем ДО middleware)
@@ -84,14 +88,43 @@ def init_db():
         raise
 
 def add_user(user_id, username, first_name, last_name, language_code):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''INSERT OR IGNORE INTO users 
-                 (user_id, username, first_name, last_name, language_code, joined_at, last_activity)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
-              (user_id, username, first_name, last_name, language_code, datetime.now(), datetime.now()))
-    conn.commit()
-    conn.close()
+    try:
+        logger.info(f"ADD_USER: Добавление пользователя {user_id} ({first_name} {last_name})")
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        # Проверяем, есть ли уже пользователь
+        c.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+        exists = c.fetchone()
+        
+        if exists:
+            logger.info(f"ADD_USER: Пользователь {user_id} уже существует, обновляем активность")
+            c.execute('UPDATE users SET last_activity = ?, username = ?, first_name = ?, last_name = ? WHERE user_id = ?',
+                     (datetime.now(), username, first_name, last_name, user_id))
+        else:
+            logger.info(f"ADD_USER: Добавляем нового пользователя {user_id}")
+            c.execute('''INSERT INTO users 
+                         (user_id, username, first_name, last_name, language_code, joined_at, last_activity)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                      (user_id, username, first_name, last_name, language_code, datetime.now(), datetime.now()))
+        
+        conn.commit()
+        
+        # Проверяем, что пользователь добавлен
+        c.execute('SELECT COUNT(*) FROM users WHERE user_id = ?', (user_id,))
+        count = c.fetchone()[0]
+        logger.info(f"ADD_USER: Пользователь {user_id} {'найден' if count > 0 else 'НЕ НАЙДЕН'} в БД после добавления")
+        
+        # Проверяем общее количество пользователей
+        c.execute('SELECT COUNT(*) FROM users')
+        total = c.fetchone()[0]
+        logger.info(f"ADD_USER: Всего пользователей в БД: {total}")
+        
+        conn.close()
+    except Exception as e:
+        logger.error(f"ADD_USER: Ошибка при добавлении пользователя {user_id}: {e}")
+        logger.error(f"ADD_USER: Трассировка: {traceback.format_exc()}")
+        raise
 
 def update_user_activity(user_id):
     conn = sqlite3.connect(DB_PATH)
@@ -339,10 +372,13 @@ async def cmd_stats_raw(message: Message):
         await message.answer("⛔️ У вас нет доступа")
         return
     try:
+        logger.info(f"STATS_RAW: Получен запрос от {user_id}")
+        logger.info(f"STATS_RAW: Подключение к БД {DB_PATH}")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM users")
         total = c.fetchone()[0]
+        logger.info(f"STATS_RAW: Всего пользователей: {total}")
         c.execute("SELECT COUNT(*) FROM users WHERE is_subscribed = 1")
         subs = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM users WHERE last_activity > datetime('now','-1 day')")
@@ -350,15 +386,20 @@ async def cmd_stats_raw(message: Message):
         c.execute("SELECT user_id, username, first_name, last_name, last_activity FROM users ORDER BY last_activity DESC LIMIT 10")
         rows = c.fetchall()
         conn.close()
+        logger.info(f"STATS_RAW: Получено строк для отображения: {len(rows)}")
 
         rows_text = "\n".join([f"ID {r[0]} @{r[1] or '—'} {r[2] or ''} {r[3] or ''} | {r[4]}" for r in rows]) or "—"
-        await message.answer(
+        response = (
             f"DB: {DB_PATH}\n"
             f"Всего: {total}\nПодписано: {subs}\nАктивны 24ч: {active}\n\nПоследние 10:\n{rows_text}"
         )
+        logger.info(f"STATS_RAW: Отправка ответа длиной {len(response)} символов")
+        await message.answer(response)
+        logger.info(f"STATS_RAW: Ответ отправлен успешно")
     except Exception as e:
-        logger.error(f"stats_raw error: {e}")
-        await message.answer("❌ Ошибка stats_raw")
+        logger.error(f"STATS_RAW: Ошибка: {e}")
+        logger.error(f"STATS_RAW: Трассировка: {traceback.format_exc()}")
+        await message.answer(f"❌ Ошибка stats_raw: {str(e)[:200]}")
 
 # Обработчик для админ-кнопок
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_") and c.data not in ["admin_list_users", "admin_broadcast"])
@@ -516,7 +557,15 @@ async def process_broadcast_message(message: Message):
 async def process_list_users(callback: CallbackQuery):
     try:
         user_id = callback.from_user.id
-        logger.info(f"LIST_USERS: Начало обработки от {user_id}, callback.data={callback.data}")
+        logger.info("=" * 50)
+        logger.info(f"LIST_USERS: ====== НАЧАЛО ОБРАБОТКИ ======")
+        logger.info(f"LIST_USERS: Пользователь: {user_id}")
+        logger.info(f"LIST_USERS: callback.data: {callback.data}")
+        logger.info(f"LIST_USERS: callback.id: {callback.id}")
+        logger.info(f"LIST_USERS: callback.from_user: {callback.from_user}")
+        logger.info(f"LIST_USERS: ADMIN_IDS: {ADMIN_IDS}")
+        logger.info(f"LIST_USERS: Пользователь в ADMIN_IDS: {user_id in ADMIN_IDS}")
+        logger.info("=" * 50)
         
         if user_id not in ADMIN_IDS:
             logger.warning(f"LIST_USERS: Нет доступа для {user_id}")
@@ -530,10 +579,25 @@ async def process_list_users(callback: CallbackQuery):
         try:
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
+            
+            # Сначала проверяем общее количество пользователей
+            c.execute('SELECT COUNT(*) FROM users')
+            total_count = c.fetchone()[0]
+            logger.info(f"LIST_USERS: Всего пользователей в БД: {total_count}")
+            
+            # Получаем список пользователей
             c.execute('SELECT user_id, username, first_name, last_name, is_subscribed, last_activity FROM users ORDER BY last_activity DESC LIMIT 10')
             users = c.fetchall()
             conn.close()
-            logger.info(f"LIST_USERS: Найдено пользователей: {len(users)}")
+            logger.info(f"LIST_USERS: Найдено пользователей в выборке: {len(users)}")
+            
+            # Логируем детали каждого пользователя
+            if users:
+                logger.info(f"LIST_USERS: Детали пользователей:")
+                for idx, user in enumerate(users, 1):
+                    logger.info(f"LIST_USERS:   {idx}. ID={user[0]}, username={user[1]}, name={user[2]} {user[3]}")
+            else:
+                logger.warning(f"LIST_USERS: В БД нет пользователей, хотя total_count={total_count}")
         except Exception as db_error:
             logger.error(f"LIST_USERS: Ошибка БД: {db_error}")
             await callback.message.edit_text(
@@ -545,14 +609,28 @@ async def process_list_users(callback: CallbackQuery):
             return
         
         if not users:
-            logger.info("LIST_USERS: Список пуст")
+            logger.warning(f"LIST_USERS: Список пуст! Всего в БД: {total_count}, но выборка вернула 0")
             markup = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
             ])
-            await callback.message.edit_text(
-                "👥 Список пользователей пуст",
-                reply_markup=markup
+            message_text = (
+                f"👥 Список пользователей пуст\n\n"
+                f"📊 Всего пользователей в БД: {total_count}\n\n"
+                f"💡 Попробуйте:\n"
+                f"• Отправить боту команду /start\n"
+                f"• Проверить статистику через /stats_raw"
             )
+            try:
+                await callback.message.edit_text(message_text, reply_markup=markup)
+                logger.info("LIST_USERS: Сообщение о пустом списке отправлено")
+            except Exception as edit_error:
+                logger.error(f"LIST_USERS: Не удалось отредактировать сообщение: {edit_error}")
+                try:
+                    await bot.send_message(user_id, message_text, reply_markup=markup)
+                    logger.info("LIST_USERS: Сообщение о пустом списке отправлено новым сообщением")
+                except Exception as send_error:
+                    logger.error(f"LIST_USERS: Не удалось отправить новое сообщение: {send_error}")
+                    await callback.answer("❌ Список пуст", show_alert=True)
             return
         
         text = "👥 Список пользователей:\n\n"
@@ -584,23 +662,45 @@ async def process_list_users(callback: CallbackQuery):
         ])
         
         logger.info(f"LIST_USERS: Отправка списка длиной {len(text)} символов")
+        logger.info(f"LIST_USERS: Тип callback.message: {type(callback.message)}")
+        logger.info(f"LIST_USERS: callback.message.message_id: {callback.message.message_id if hasattr(callback.message, 'message_id') else 'N/A'}")
+        
         try:
-            await callback.message.edit_text(text, reply_markup=markup)
-            logger.info(f"LIST_USERS: Успешно отправлен для {user_id}")
+            # Пробуем отредактировать сообщение
+            if hasattr(callback.message, 'edit_text'):
+                logger.info("LIST_USERS: Пробуем edit_text")
+                await callback.message.edit_text(text, reply_markup=markup)
+                logger.info(f"LIST_USERS: Успешно отредактировано для {user_id}")
+            else:
+                logger.warning("LIST_USERS: callback.message не имеет метода edit_text, отправляем новое сообщение")
+                raise AttributeError("Message object has no edit_text method")
         except Exception as edit_error:
             logger.error(f"LIST_USERS: Ошибка при редактировании сообщения: {edit_error}")
-            logger.error(f"LIST_USERS: Детали ошибки редактирования: {type(edit_error).__name__}: {edit_error}")
+            logger.error(f"LIST_USERS: Тип ошибки: {type(edit_error).__name__}")
+            logger.error(f"LIST_USERS: Трассировка: {traceback.format_exc()}")
+            
             # Если не удалось отредактировать, отправляем новое сообщение
             try:
+                logger.info(f"LIST_USERS: Пробуем отправить новое сообщение пользователю {user_id}")
                 await bot.send_message(
                     user_id, 
                     text, 
                     reply_markup=markup
                 )
                 logger.info(f"LIST_USERS: Список отправлен новым сообщением для {user_id}")
+                # Отвечаем на callback, чтобы убрать индикатор загрузки
+                try:
+                    await callback.answer("✅ Список отправлен", show_alert=False)
+                except:
+                    pass
             except Exception as send_error:
                 logger.error(f"LIST_USERS: Не удалось отправить новое сообщение: {send_error}")
-                await callback.answer("❌ Ошибка при отправке списка", show_alert=True)
+                logger.error(f"LIST_USERS: Тип ошибки отправки: {type(send_error).__name__}")
+                logger.error(f"LIST_USERS: Трассировка отправки: {traceback.format_exc()}")
+                try:
+                    await callback.answer("❌ Ошибка при отправке списка", show_alert=True)
+                except:
+                    pass
     except Exception as e:
         logger.error(f"LIST_USERS: КРИТИЧЕСКАЯ ОШИБКА - {type(e).__name__}: {e}")
         logger.error(f"LIST_USERS: Полная трассировка: {traceback.format_exc()}")
@@ -644,14 +744,18 @@ async def handle_webhook(request):
         try:
             update = types.Update(**data)
             logger.info(f"WEBHOOK: Создан объект Update, обработка...")
+            logger.info(f"WEBHOOK: Тип обновления: {update.message and 'message' or update.callback_query and 'callback_query' or 'unknown'}")
+            
+            # Обрабатываем обновление
             await dp.process_update(update)
             logger.info(f"WEBHOOK: Обновление {data.get('update_id', 'unknown')} обработано успешно")
         except Exception as process_error:
             logger.error(f"WEBHOOK: Ошибка при process_update: {process_error}")
             logger.error(f"WEBHOOK: Тип ошибки process_update: {type(process_error).__name__}")
             logger.error(f"WEBHOOK: Трассировка process_update: {traceback.format_exc()}")
-            # Продолжаем выполнение, чтобы вернуть ответ Telegram
-            raise
+            # НЕ поднимаем исключение, чтобы вернуть ответ Telegram
+            # Telegram будет повторять отправку, если не вернем 200 OK
+            pass
         
         return web.Response(text="OK")
     except Exception as e:
