@@ -605,15 +605,27 @@ async def process_broadcast_callback(callback: CallbackQuery):
 async def process_admin_callback(callback: CallbackQuery):
     try:
         user_id = callback.from_user.id
-        logger.info(f"PROCESS_ADMIN: Обработка callback {callback.data} от {user_id}")
+        logger.info("=" * 50)
+        logger.info(f"PROCESS_ADMIN: ====== НАЧАЛО ОБРАБОТКИ ======")
+        logger.info(f"PROCESS_ADMIN: callback.data = {callback.data}")
+        logger.info(f"PROCESS_ADMIN: Пользователь: {user_id}")
+        logger.info(f"PROCESS_ADMIN: ADMIN_IDS: {ADMIN_IDS}")
         logger.info(f"PROCESS_ADMIN: Проверка исключений: admin_list_users={callback.data == 'admin_list_users'}, admin_broadcast={callback.data == 'admin_broadcast'}")
         
         if user_id not in ADMIN_IDS:
-            await callback.answer("⛔️ У вас нет доступа")
+            logger.warning(f"PROCESS_ADMIN: Нет доступа для {user_id}")
+            await callback.answer("⛔️ У вас нет доступа", show_alert=True)
             return
         
+        # Отвечаем на callback сразу, чтобы пользователь видел реакцию
+        try:
+            await callback.answer()
+            logger.info(f"PROCESS_ADMIN: callback.answer() выполнен")
+        except Exception as answer_error:
+            logger.error(f"PROCESS_ADMIN: Ошибка при callback.answer(): {answer_error}")
+        
         action = callback.data.split("_")[1]
-        logger.info(f"Обработка действия {action} для пользователя {user_id}")
+        logger.info(f"PROCESS_ADMIN: Обработка действия action='{action}' для пользователя {user_id}")
         
         try:
             if action == "stats":
@@ -644,16 +656,36 @@ async def process_admin_callback(callback: CallbackQuery):
                     reply_markup=markup
                 )
             elif action == "users":
+                logger.info(f"PROCESS_ADMIN: Обработка action='users' для {user_id}")
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🔍 Поиск пользователя", callback_data="admin_search_user")],
                     [InlineKeyboardButton(text="📋 Список пользователей", callback_data="admin_list_users")],
                     [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
                 ])
-                await callback.message.edit_text(
-                    "👥 Управление пользователями:\n\n"
-                    "Выберите действие:",
-                    reply_markup=markup
-                )
+                try:
+                    logger.info(f"PROCESS_ADMIN: Попытка edit_text для action='users'")
+                    await callback.message.edit_text(
+                        "👥 Управление пользователями:\n\n"
+                        "Выберите действие:",
+                        reply_markup=markup
+                    )
+                    logger.info(f"PROCESS_ADMIN: edit_text успешно выполнен для action='users'")
+                except Exception as edit_error:
+                    logger.error(f"PROCESS_ADMIN: Ошибка edit_text для action='users': {edit_error}")
+                    logger.error(f"PROCESS_ADMIN: Тип ошибки: {type(edit_error).__name__}")
+                    logger.error(f"PROCESS_ADMIN: Трассировка: {traceback.format_exc()}")
+                    # Пробуем отправить новое сообщение
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            "👥 Управление пользователями:\n\n"
+                            "Выберите действие:",
+                            reply_markup=markup
+                        )
+                        logger.info(f"PROCESS_ADMIN: Новое сообщение отправлено для action='users'")
+                    except Exception as send_error:
+                        logger.error(f"PROCESS_ADMIN: Ошибка отправки нового сообщения: {send_error}")
+                        raise
             elif action == "settings":
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="📢 Канал", callback_data="admin_channel_settings")],
@@ -682,16 +714,23 @@ async def process_admin_callback(callback: CallbackQuery):
                     reply_markup=markup
                 )
             
-            await callback.answer()
+            # callback.answer() уже вызван в начале функции
+            logger.info(f"PROCESS_ADMIN: Обработка action='{action}' завершена успешно")
         except Exception as e:
-            logger.error(f"Ошибка при обработке действия {action}: {type(e).__name__}: {e}")
-            await callback.answer("❌ Произошла ошибка при обработке запроса")
+            logger.error(f"PROCESS_ADMIN: Ошибка при обработке действия {action}: {type(e).__name__}: {e}")
+            logger.error(f"PROCESS_ADMIN: Трассировка: {traceback.format_exc()}")
+            try:
+                await callback.answer("❌ Произошла ошибка при обработке запроса", show_alert=True)
+            except:
+                pass
     except Exception as e:
-        logger.error(f"Ошибка при обработке callback: {e}")
+        logger.error(f"PROCESS_ADMIN: КРИТИЧЕСКАЯ ОШИБКА при обработке callback {callback.data}: {type(e).__name__}: {e}")
+        logger.error(f"PROCESS_ADMIN: Полная трассировка: {traceback.format_exc()}")
         try:
-            await callback.answer("❌ Произошла ошибка")
+            await callback.answer("❌ Произошла ошибка", show_alert=True)
         except:
             pass
+        logger.info("=" * 50)
 
 @dp.message_handler(lambda message: message.from_user.id in ADMIN_IDS and message.reply_to_message and message.reply_to_message.text.startswith("📨 Отправьте сообщение для рассылки:"))
 async def process_broadcast_message(message: Message):
